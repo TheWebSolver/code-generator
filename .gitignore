@@ -1,0 +1,11 @@
+/*
+!.gitignore
+!composer.json
+!composer.lock
+!phpcs.xml.dist
+!code-generator.php
+
+# Directories
+!/src
+/src/*
+!/src/Generators/

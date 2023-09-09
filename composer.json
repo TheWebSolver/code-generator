@@ -1,0 +1,29 @@
+{
+  "name": "thewebsolver/field-manager",
+  "description": "The field manager development library",
+  "type": "library",
+  "license": "GPL-v3-or-later",
+  "authors": [
+    {
+      "name": "Shesh Ghimire",
+      "email": "sheshgh@outlook.com"
+    }
+  ],
+  "minimum-stability": "dev",
+  "require": {
+    "php": ">=7.4",
+    "nette/php-generator": "~3.6",
+    "nikic/php-parser": "~4",
+    "phpstan/phpdoc-parser": "^1.24"
+  },
+  "autoload": {
+    "psr-4": {
+      "TheWebSolver\\Codegarage\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "TheWebSolver\\Codegarage\\": "tests/"
+    }
+  }
+}
