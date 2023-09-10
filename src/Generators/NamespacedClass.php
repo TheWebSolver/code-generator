@@ -108,10 +108,18 @@ class NamespacedClass {
 		return $this;
 	}
 
-	public function addMethod(
-		string $class, string $name, bool $title = true, bool $desc = false, bool $returnOnDoc = false
+	public function addMethod( string $name ): Method {
+		return $this->getClass()->addMethod( $name );
+	}
+
+	public function withMethod(
+		string $fromClass,
+		string $name,
+		bool $title = true,
+		bool $desc = false,
+		bool $returnOnDoc = false
 	): self {
-		$fromMethod = self::fromMethod( $class, $name );
+		$fromMethod = self::fromMethod( $fromClass, $name );
 		$toMethod   = $this->getClass()->addMethod( $name );
 		$node       = DocParser::fromMethod( $fromMethod );
 		$comments   = DocParser::getTextNodes( $node );
@@ -149,16 +157,16 @@ class NamespacedClass {
 		return $this;
 	}
 
-	public function withMethod( string $name ): Method {
-		return $this->getClass()->addMethod( $name );
-	}
-
 	/** @param string[] $names */
 	public function withMethods(
-		string $class, array $names, bool $title = true, bool $desc = false, bool $returnOnDoc = false
+		string $fromClass,
+		array $names,
+		bool $title = true,
+		bool $desc = false,
+		bool $returnOnDoc = false
 	): self {
 		foreach ( $names as $name ) {
-			$this->addMethod( $class, $name, $title, $desc, $returnOnDoc );
+			$this->withMethod( $fromClass, $name, $title, $desc, $returnOnDoc );
 		}
 
 		return $this;
