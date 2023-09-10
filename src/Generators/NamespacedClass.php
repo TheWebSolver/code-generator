@@ -9,11 +9,13 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generators;
 
+use LogicException;
 use ReflectionMethod;
 use Nette\Utils\Type;
 use ReflectionException;
 use ReflectionParameter;
 use ReflectionNamedType;
+use InvalidArgumentException;
 use Nette\PhpGenerator\Method;
 use Nette\PhpGenerator\ClassType;
 use Nette\PhpGenerator\PhpNamespace;
@@ -25,9 +27,11 @@ class NamespacedClass {
 	/** @var string[] */
 	private array $implements;
 	private string $extends;
+	private string $name;
 
 	public function __construct( string $namespace ) {
-		$this->namespace = new PhpNamespace( $namespace );
+		$this->namespace = new PhpNamespace( self::stripSlashesFrom( $namespace ) );
+		$this->name      = self::makeFqcnFor( $this->namespace->getName() );
 	}
 
 	public function __toString() {
@@ -38,16 +42,25 @@ class NamespacedClass {
 		return new self( $namespace );
 	}
 
-	public static function stripNamespace( string $fqcn ): string {
-		$parts = explode( '\\', $fqcn );
+	public static function stripSlashesFrom( string $fqcn ): string {
+		return trim( $fqcn, '\\' );
+	}
 
-		return array_pop( $parts );
+	public static function makeFqcnFor( string $name ): string {
+		return '\\' . self::stripSlashesFrom( $name );
+	}
+
+	/** @return ($classNameOnly is false ? string[] : string) */
+	public static function resolveClassNameFrom( string $fqcn, bool $classNameOnly = true ) {
+		$parts = array_filter( explode( '\\', $fqcn ), fn( string $part ): bool => '' !== $part );
+
+		return $classNameOnly ? array_pop( $parts ) : $parts;
 	}
 
 	/** @param int|string $alias */
 	public static function resolveImportFrom( string $name, $alias = 0 ): array {
 		if ( ! is_string( $alias ) || '' === $alias ) {
-			$alias = self::stripNamespace( $name );
+			$alias = self::resolveClassNameFrom( self::makeFqcnFor( $name ) );
 		}
 
 		return array( $name, $alias );
@@ -58,13 +71,36 @@ class NamespacedClass {
 	}
 
 	public function resolveImportedAliasFrom( string $fqcn ): string {
-		$classname = self::stripNamespace( $fqcn );
+		$classname = self::resolveClassNameFrom( $fqcn );
 
 		return ! array_key_exists( $classname, $this->namespace->getUses() )
-			? '\\' . trim( $fqcn, '\\' )
+			? self::makeFqcnFor( $fqcn )
 			: $classname;
 	}
 
+	/** @throws InvalidArgumentException When namespace mismatch. */
+	public function prepareClassNameFrom( string $fqcn ): string {
+		$rawFqcn     = $fqcn;
+		$fqcn        = self::makeFqcnFor( $fqcn );
+		$isClassOnly = 1 === count( $parts = (array) self::resolveClassNameFrom( $fqcn, false ) );
+		$className   = (string) array_pop( $parts );
+
+		if ( $isClassOnly || strpos( $fqcn, "{$this->name}\\" ) !== false ) {
+			return $className;
+		}
+
+		throw new InvalidArgumentException(
+			sprintf(
+				'Given Fully Qualified Class Name "%1$s" does not belong with the current namespace "%2$s". The given classname "%3$s" belongs to "%4$s" namespace.',
+				$rawFqcn,
+				$this->namespace->getName(),
+				$className,
+				implode( '\\', $parts )
+			)
+		);
+	}
+
+	/** @throws LogicException When this method is called before class is created. */
 	public function getClass(): ClassType {
 		static $class = null;
 
@@ -75,11 +111,23 @@ class NamespacedClass {
 			);
 
 			$class = array_shift( $classes );
+
+			if ( ! $class instanceof ClassType ) {
+				throw new LogicException(
+					sprintf(
+						'"%s" method can only be called after class is created in the current namespace "%2$s". Use method "%3$s" to add class first.',
+						__METHOD__,
+						"\\{$this->namespace->getName()}",
+						self::class . '::createClass()'
+					)
+				);
+			}
 		}
 
 		return $class;
 	}
 
+	/** @throws LogicException When this method is called before class is created. */
 	public function getMethod( string $name ): Method {
 		return $this->getClass()->getMethod( $name );
 	}
@@ -89,14 +137,15 @@ class NamespacedClass {
 		return is_string( $method ) ? $this->getMethod( $method ) : $method;
 	}
 
-	/** @param string|string[] $implements */
+	/**
+	 * @param string|string[] $implements The interface names that the given class implements.
+	 * @throws InvalidArgumentException When fully qualified classname given & namespace mismatch.
+	 */
 	public function createClass( string $name, string $extends = null, $implements = null ): self {
-		$class = $this->namespace->addClass( $name );
+		$class = $this->namespace->addClass( $this->prepareClassNameFrom( $name ) );
 
 		if ( $extends ) {
-			$this->extends = $extends;
-
-			$class->addExtend( $extends );
+			$class->addExtend( $this->extends = $extends );
 		}
 
 		if ( $implements ) {
@@ -108,10 +157,12 @@ class NamespacedClass {
 		return $this;
 	}
 
+	/** @throws LogicException When this method is called before class is created. */
 	public function addMethod( string $name ): Method {
 		return $this->getClass()->addMethod( $name );
 	}
 
+	/** @throws LogicException When this method is called before class is created. */
 	public function withMethod(
 		string $fromClass,
 		string $name,
