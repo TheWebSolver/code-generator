@@ -25,8 +25,8 @@ use PHPStan\PhpDocParser\Ast\PhpDoc\ParamTagValueNode;
 class NamespacedClass {
 	private PhpNamespace $namespace;
 	/** @var string[] */
-	private array $implements;
-	private string $extends;
+	private array $implements = array();
+	private string $extends   = '';
 	private string $name;
 
 	public function __construct( string $namespace ) {
@@ -36,6 +36,10 @@ class NamespacedClass {
 
 	public function __toString() {
 		return (string) $this->namespace;
+	}
+
+	public function namespace(): PhpNamespace {
+		return $this->namespace;
 	}
 
 	public static function from( string $namespace ): self {
@@ -170,7 +174,7 @@ class NamespacedClass {
 		bool $desc = false,
 		bool $returnOnDoc = false
 	): self {
-		$fromMethod = self::fromMethod( $fromClass, $name );
+		$fromMethod = self::fromMethod( self::makeFqcnFor( $fromClass ), $name );
 		$toMethod   = $this->getClass()->addMethod( $name );
 		$node       = DocParser::fromMethod( $fromMethod );
 		$comments   = DocParser::getTextNodes( $node );
@@ -228,6 +232,11 @@ class NamespacedClass {
 		$imports = array_merge( $imports, array( $this->extends ), $this->implements );
 
 		foreach ( $imports as $key => $name ) {
+			// Do not add import for "extends" and "implements" if class doesn't have any.
+			if ( empty( $name ) ) {
+				continue;
+			}
+
 			$this->namespace->addUse( ...self::resolveImportFrom( $name, $key ) );
 		}
 
