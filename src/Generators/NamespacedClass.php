@@ -54,7 +54,10 @@ class NamespacedClass {
 		return '\\' . self::stripSlashesFrom( $name );
 	}
 
-	/** @return ($classNameOnly is false ? string[] : string) */
+	/**
+	 * @return string|array<int,string>
+	 * @phpstan-return ($classNameOnly is false ? string[] : class-string)
+	 */
 	public static function resolveClassNameFrom( string $fqcn, bool $classNameOnly = true ) {
 		$parts = array_filter( explode( '\\', $fqcn ), fn( string $part ): bool => '' !== $part );
 
