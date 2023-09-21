@@ -1,6 +1,6 @@
 {
-  "name": "thewebsolver/field-manager",
-  "description": "The field manager development library",
+  "name": "thewebsolver/code-generator",
+  "description": "Package for generating codes",
   "type": "library",
   "license": "GPL-v3-or-later",
   "authors": [
