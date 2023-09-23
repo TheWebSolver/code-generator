@@ -1,8 +1,6 @@
 <?php
 /**
- * Namespaced class generator.
- *
- * @package TheWebSolver
+ * @package TheWebSolver\CodeGenerator\Class
  */
 
 declare( strict_types = 1 );

@@ -1,8 +1,6 @@
 <?php
 /**
- * Doc Generator
- *
- * @package TheWebSolver
+ * @package TheWebSolver\CodeGenerator\DocParser
  */
 
 declare( strict_types = 1 );
