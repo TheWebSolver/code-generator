@@ -150,7 +150,7 @@ final class Parameter {
 		return $this->promoted;
 	}
 
-	private function getRawDefaultValue(): ?string {
+	private function getRawDefaultValue(): mixed {
 		return $this->defaultValue;
 	}
 
@@ -237,11 +237,11 @@ final class Parameter {
 		} elseif ( is_string( $this->defaultValue ) && strpos( $this->defaultValue, '$', 0 ) === 0 ) {
 			$variable = str_replace( '$', '', $this->defaultValue );
 
-			if ( ! $actual = $$variable ?? null ) {
+			if ( ! $setVariable = $$variable ?? null ) {
 				$this->invalidValueKey = 'default';
 			}
 
-			$default = is_object( $actual ) ? new Literal( '$actual' ) : $actual;
+			$default = is_object( $setVariable ) ? new Literal( $default ) : $setVariable;
 		}
 
 		$param->setDefaultValue( $default )
