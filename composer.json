@@ -2,7 +2,7 @@
   "name": "thewebsolver/code-generator",
   "description": "Package for generating codes",
   "type": "library",
-  "license": "GPL-v3-or-later",
+  "license": "GPL-3.0-or-later",
   "authors": [
     {
       "name": "Shesh Ghimire",
