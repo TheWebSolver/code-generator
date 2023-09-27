@@ -54,15 +54,18 @@ class NamespacedClass {
 
 	/**
 	 * @return string|array<int,string>
-	 * @phpstan-return ($classNameOnly is false ? string[] : class-string)
+	 * @phpstan-return ($classNameOnly is false ? array<int,string> : string)
 	 */
 	public static function resolveClassNameFrom( string $fqcn, bool $classNameOnly = true ) {
 		$parts = array_filter( explode( '\\', $fqcn ), fn( string $part ): bool => '' !== $part );
 
-		return $classNameOnly ? array_pop( $parts ) : $parts;
+		return ! $classNameOnly ? $parts : ( array_pop( $parts ) ?? '' );
 	}
 
-	/** @param int|string $alias */
+	/**
+	 * @param int|string $alias The import alias.
+	 * @return array<int,string>
+	 */
 	public static function resolveImportFrom( string $name, $alias = 0 ): array {
 		if ( ! is_string( $alias ) || '' === $alias ) {
 			$alias = self::resolveClassNameFrom( self::makeFqcnFor( $name ) );
@@ -249,7 +252,7 @@ class NamespacedClass {
 	 * @param ParamTagValueNode[]   $nodes  The doc comment params.
 	 * @param ReflectionParameter[] $args   The method arg params.
 	 */
-	public function attachParamsToMethod( $method, array $nodes, array $args ) {
+	public function attachParamsToMethod( $method, array $nodes, array $args ): void {
 		$method     = $this->resolveMethod( $method );
 		$isVariadic = false;
 
@@ -288,6 +291,7 @@ class NamespacedClass {
 		$desc     = $return ? $return->description : '';
 		$type     = $return ? (string) $return->type : '';
 		$fromType = $reflection->getReturnType();
+		$method   = $this->resolveMethod( $method );
 
 		if ( $fromType instanceof ReflectionNamedType ) {
 			$type = $fromType->getName();
@@ -295,7 +299,7 @@ class NamespacedClass {
 			// We'll only add return type hint if it is declared on the reflection method.
 			// We do not want to add unsupported return type on method name.
 			if ( $head ) {
-				$this->resolveMethod( $method )->setReturnType( $type );
+				$method->setReturnType( $type );
 			}
 		}
 

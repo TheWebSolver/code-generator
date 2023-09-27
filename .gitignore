@@ -4,6 +4,7 @@
 !composer.lock
 !phpcs.xml.dist
 !code-generator.php
+!phpstan.neon
 
 # Directories
 !/src
