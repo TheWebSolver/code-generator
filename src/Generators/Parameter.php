@@ -17,7 +17,11 @@ use Nette\PhpGenerator\Parameter as NetteParameter;
  * @phpstan-type ArgsAsArray array{name:string,position:int,type:?string,defaultValue:mixed,isReference:bool,isVariadic:bool,isNullable:bool,isPromoted:bool}
  */
 final class Parameter {
-	/** @var array<string,string> */
+	/**
+	 * List of constructor arguments with their respective type.
+	 *
+	 * @var array<string,string>
+	 */
 	public const CREATION_ARGS = array(
 		'defaultValue' => 'mixed',
 		'isReference'  => 'bool',
