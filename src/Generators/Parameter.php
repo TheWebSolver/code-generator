@@ -46,6 +46,8 @@ final class Parameter {
 	private string $name                  = '';
 
 	private NetteParameter $param;
+	/** @var ArgsAsArray|null */
+	private ?array $asArray;
 
 	/** @throws InvalidArgumentException When empty string given for `name|type`. */
 	private function __construct(
@@ -174,25 +176,19 @@ final class Parameter {
 
 	/** @phpstan-return ArgsAsArray */
 	public function toArray(): array {
-		static $array = null;
-
-		if ( null === $array ) {
-			$array = array_combine(
-				array_keys( self::CREATION_ARGS ),
-				array(
-					$this->getRawDefaultValue(),
-					$this->isPassedByReference(),
-					$this->allowsNull(),
-					$this->isVariadic(),
-					$this->isPromoted(),
-					$this->getPosition(),
-					$this->getRawType(),
-					$this->getName(),
-				)
-			);
-		}
-
-		return $array;
+		return $this->asArray ??= array_combine(
+			array_keys( self::CREATION_ARGS ),
+			array(
+				$this->getRawDefaultValue(),
+				$this->isPassedByReference(),
+				$this->allowsNull(),
+				$this->isVariadic(),
+				$this->isPromoted(),
+				$this->getPosition(),
+				$this->getRawType(),
+				$this->getName(),
+			)
+		);
 	}
 
 	public function getNetteParameter(): NetteParameter {
