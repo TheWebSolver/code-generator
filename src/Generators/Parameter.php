@@ -8,29 +8,40 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Generators;
 
 use Nette\Utils\Type;
+use RuntimeException;
 use InvalidArgumentException;
 use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PromotedParameter;
 use Nette\PhpGenerator\Parameter as NetteParameter;
+
 /**
  * @phpstan-type ArgsAsArray array{name:string,position:int,type:?string,defaultValue:mixed,isReference:bool,isVariadic:bool,isNullable:bool,isPromoted:bool}
  */
 final class Parameter {
+	public const REFERENCE = 'isReference';
+	public const NULLABLE  = 'isNullable';
+	public const VARIADIC  = 'isVariadic';
+	public const PROMOTED  = 'isPromoted';
+	public const POSITION  = 'position';
+	public const DEFAULT   = 'defaultValue';
+	public const TYPE      = 'type';
+	public const NAME      = 'name';
+
 	/**
 	 * List of constructor arguments with their respective type.
 	 *
 	 * @var array<string,string>
 	 */
 	public const CREATION_ARGS = array(
-		'defaultValue' => 'mixed',
-		'isReference'  => 'bool',
-		'isNullable'   => 'bool',
-		'isVariadic'   => 'bool',
-		'isPromoted'   => 'bool',
-		'position'     => 'int',
-		'type'         => '?string',
-		'name'         => 'string',
+		self::REFERENCE  => 'bool',
+		self::NULLABLE   => 'bool',
+		self::VARIADIC   => 'bool',
+		self::PROMOTED   => 'bool',
+		self::POSITION   => 'int',
+		self::DEFAULT    => 'mixed',
+		self::TYPE       => '?string',
+		self::NAME       => 'string',
 	);
 
 	private bool $isDefaultValueAvailable = false;
@@ -58,7 +69,7 @@ final class Parameter {
 		bool $isReference = false,
 		bool $isVariadic = false,
 		bool $isNullable = false,
-		bool $isPromoted = false,
+		bool $isPromoted = false
 	) {
 		$this->setDefault( $defaultValue );
 
@@ -163,10 +174,22 @@ final class Parameter {
 		};
 
 		throw new InvalidArgumentException(
-			'The given args does not map wilth creation args. To veiw all supported args, see "'
+			'The given args does not map with creation args. To view all supported args, see "'
 				. self::class
 				. '::CREATION_ARGS" constant.'
 		);
+	}
+
+	public static function validateCreationArg( string $name ): void {
+		if ( ! array_key_exists( $name, self::CREATION_ARGS ) ) {
+			throw new RuntimeException(
+				sprintf(
+					'The parameter data must be for one of the creation args: %1$s. "%2$s" given',
+					implode( ' | ', array_keys( self::CREATION_ARGS ) ),
+					$name
+				)
+			);
+		}
 	}
 
 	/** @phpstan-param array{position?:int,defaultValue?:mixed} $newValues */
@@ -176,18 +199,15 @@ final class Parameter {
 
 	/** @phpstan-return ArgsAsArray */
 	public function toArray(): array {
-		return $this->asArray ??= array_combine(
-			array_keys( self::CREATION_ARGS ),
-			array(
-				$this->getRawDefaultValue(),
-				$this->isPassedByReference(),
-				$this->allowsNull(),
-				$this->isVariadic(),
-				$this->isPromoted(),
-				$this->getPosition(),
-				$this->getRawType(),
-				$this->getName(),
-			)
+		return $this->asArray ??= array(
+			self::REFERENCE => $this->isPassedByReference(),
+			self::NULLABLE  => $this->allowsNull(),
+			self::VARIADIC  => $this->isVariadic(),
+			self::PROMOTED  => $this->isPromoted(),
+			self::POSITION  => $this->getPosition(),
+			self::DEFAULT   => $this->getRawDefaultValue(),
+			self::TYPE      => $this->getRawType(),
+			self::NAME      => $this->getName(),
 		);
 	}
 
