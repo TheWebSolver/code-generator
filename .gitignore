@@ -10,3 +10,6 @@
 !/src
 /src/*
 !/src/Generators/
+!/src/Data
+/src/Data/*
+!/src/Data/ParamExtractionError.php

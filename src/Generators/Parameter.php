@@ -14,6 +14,7 @@ use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PromotedParameter;
 use Nette\PhpGenerator\Parameter as NetteParameter;
+use TheWebSolver\Codegarage\Data\ParamExtractionError;
 
 /**
  * @phpstan-type ArgsAsArray array{name:string,position:int,type:?string,defaultValue:mixed,isReference:bool,isVariadic:bool,isNullable:bool,isPromoted:bool}
@@ -119,42 +120,54 @@ final class Parameter {
 	 *     'isPromoted'   => 'false',
 	 *     'defaultValue' => 'true',
 	 *   ),
-	 *   'error' => '',
+	 *   'error' => null,
 	 * );
 	 *
 	 * $example_5_withError = array(
 	 *   'raw'   => array(),
-	 *   'error' => 'noName',
+	 *   'error' => ParamExtractionError::of(
+	 *     type: 'noName',
+	 *     value: 'type=array,isPromoted=true,isNullable=false,isVariadic=true'
+	 *   ),,
 	 * );
 	 * ```
 	 *
-	 * @return array<string,string|string[]>
-	 * @phpstan-return array{error:string, raw:string[]}
+	 * @return array<string,\TheWebSolver\Codegarage\Data\ParamExtractionError|array<string,string>|null>
+	 * @phpstan-return array{error:?\TheWebSolver\Codegarage\Data\ParamExtractionError, raw:array<string,string>}
 	 */
 	public static function extractFrom( string $string ): array {
 		$params = str_replace( array( '[', ']' ), '', $string, $count );
 		$raw    = array();
-		$error  = '';
+		$error  = null;
 
 		if ( 2 !== $count ) {
-			$error = 'extractionError';
+			$error = ParamExtractionError::of( 'extractionError', $params );
 
 			return compact( 'raw', 'error' );
 		}
 
 		foreach ( explode( ',', $params ) as $param ) {
-			if ( 2 !== count( $pair = array_values( explode( '=', $param, 2 ) ) ) ) {
-				$error = 'invalidPair';
+			$pair = array_values( explode( '=', $param, 2 ) );
+
+			if ( strpos( $pair[1], '=' ) !== false ) {
+				$error = ParamExtractionError::of( 'invalidPair', $param );
 
 				return compact( 'raw', 'error' );
 			}
 
-			list( $name, $data ) = $pair;
-			$raw[ $name ]        = $data;
+			list( $creationArg, $data ) = $pair;
+
+			if ( ! array_key_exists( $creationArg, self::CREATION_ARGS ) ) {
+				$error = ParamExtractionError::of( 'invalidCreationArg', $param );
+
+				return compact( 'raw', 'error' );
+			}
+
+			$raw[ $creationArg ] = $data;
 		}
 
-		if ( ! array_key_exists( 'name', $raw ) ) {
-			$error = 'noName';
+		if ( ! array_key_exists( self::NAME, $raw ) ) {
+			$error = ParamExtractionError::of( 'noName', $params );
 
 			return compact( 'raw', 'error' );
 		}
