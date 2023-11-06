@@ -46,6 +46,14 @@ class DocParser {
 		);
 	}
 
+	public static function fromDocBlock( string $content ): PhpDocNode {
+		$parser = new self();
+
+		return $parser->doc_parser->parse(
+			new TokenIterator( $parser->lexer->tokenize( $content ) )
+		);
+	}
+
 	/** @return TextNode[] */
 	public static function getTextNodes( PhpDocNode $nodes ): array {
 		return array_values(
