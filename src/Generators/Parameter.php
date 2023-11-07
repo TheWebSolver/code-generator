@@ -7,6 +7,7 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generators;
 
+use Closure;
 use Nette\Utils\Type;
 use RuntimeException;
 use InvalidArgumentException;
@@ -101,6 +102,9 @@ final class Parameter {
 	/**
 	 * Extracts parameter properties from given string data.
 	 *
+	 * @param null|(callable(string $arg, string $value, string $param): string) $validator The validator.
+	 * @return array<string,\TheWebSolver\Codegarage\Data\ParamExtractionError|array<string,string>|null>
+	 *
 	 * Examples: String with param constructor property in key/value pair separated by "=" sign.
 	 * 1. `"[name=firstName,type=TheWebSolver\Codegarage\Generators\Parameter,isReference=false]"`
 	 * 2. `"[name=last,isVariadic=true,type=string]"`
@@ -131,11 +135,9 @@ final class Parameter {
 	 *   ),,
 	 * );
 	 * ```
-	 *
-	 * @return array<string,\TheWebSolver\Codegarage\Data\ParamExtractionError|array<string,string>|null>
 	 * @phpstan-return array{error:?\TheWebSolver\Codegarage\Data\ParamExtractionError, raw:array<string,string>}
 	 */
-	public static function extractFrom( string $string ): array {
+	public static function extractFrom( string $string, ?callable $validator = null ): array {
 		$params = str_replace( array( '[', ']' ), '', $string, $count );
 		$raw    = array();
 		$error  = null;
@@ -163,8 +165,13 @@ final class Parameter {
 				return compact( 'raw', 'error' );
 			}
 
+			if ( ! is_null( $validator ) ) {
+				$sanitize = Closure::fromCallable( $validator );
+				$data     = $sanitize( $creationArg, $data, $string );
+			}
+
 			$raw[ $creationArg ] = $data;
-		}
+		}//end foreach
 
 		if ( ! array_key_exists( self::NAME, $raw ) ) {
 			$error = ParamExtractionError::of( 'noName', $params );
