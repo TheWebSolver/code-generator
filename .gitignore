@@ -8,9 +8,7 @@
 !.editorconfig
 
 # Directories
-!/src
-/src/*
-!/src/Generators/
-!/src/Data
-/src/Data/*
-!/src/Data/ParamExtractionError.php
+!Src
+Src/*
+!Src/*.php
+!Src/Data
