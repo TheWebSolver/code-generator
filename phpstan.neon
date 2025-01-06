@@ -3,14 +3,13 @@ includes:
 parameters:
 	level: max
 	paths:
-		- src/
-		- code-generator.php
+		- Src/
 	excludePaths:
-		- vendor/autoload.php
+		- vendor/
 	ignoreErrors:
 		-
 			messages:
-				- '#^Parameter \#1 \$name of class TheWebSolver\\Codegarage\\Generators\\Parameter constructor expects string, mixed given\.$#'
+				- '#^Parameter \#1 \$name of class TheWebSolver\\Codegarage\\Generator\\Parameter constructor expects string, mixed given\.$#'
 				- '#^Parameter \#2 \$string of function explode expects string, mixed given\.$#'
 				- '#^Parameter \#1 \$value of class Nette\\PhpGenerator\\Literal constructor expects string, mixed given\.$#'
-			path: src/Generators/Parameter.php
+			path: Src/Parameter.php
