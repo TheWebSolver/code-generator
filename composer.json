@@ -13,7 +13,7 @@
   "require": {
     "php": ">=8.2.0",
     "nette/php-generator": "~3.6",
-    "nikic/php-parser": "~4",
+    "nikic/php-parser": "^5.3",
     "phpstan/phpdoc-parser": "^1.24"
   },
   "autoload": {
@@ -23,7 +23,10 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "TheWebSolver\\Codegarage\\": "tests/"
+      "TheWebSolver\\Codegarage\\": "Tests/"
     }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
   }
 }

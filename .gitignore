@@ -1,14 +1,16 @@
 /*
 !.gitignore
 !composer.json
-!composer.lock
+composer.lock
 !phpcs.xml.dist
 !code-generator.php
 !phpstan.neon
 !.editorconfig
+!phpunit.xml.dist
 
 # Directories
 !Src
+!Tests
 Src/*
 !Src/*.php
 !Src/Data

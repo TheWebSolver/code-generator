@@ -3,14 +3,12 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generator;
 
-use Closure;
 use Nette\Utils\Type;
 use RuntimeException;
 use InvalidArgumentException;
 use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PromotedParameter;
-use Nette\PhpGenerator\Parameter as NetteParameter;
 use TheWebSolver\Codegarage\Generator\Data\ParamExtractionError;
 
 /**
@@ -63,9 +61,9 @@ final class Parameter {
 	private int $position                 = 0;
 	private string $name                  = '';
 
-	private NetteParameter $param;
-	/** @var ArgsAsArray|null */
-	private ?array $asArray;
+	private PromotedParameter $param;
+	/** @var ArgsAsArray */
+	private array $asArray;
 
 	/** @throws InvalidArgumentException When empty string given for `name|type`. */
 	private function __construct(
@@ -108,8 +106,8 @@ final class Parameter {
 	/**
 	 * Extracts parameter properties from given string data.
 	 *
-	 * @param null|(callable(string $arg, string $value, string $param): string) $validator The validator.
-	 * @return array{error:?ParamExtractionError, raw:array<string,string>}
+	 * @param (callable(string $attributeName, string $AttributeValue, string $acceptedString): (string|ParamExtractionError))|null $validator External validator to validate the extracted attribute & its value. It must return an instance of `ParamExtractionError` if attribute name or its value cannot be validated.
+	 * @return array{error:?ParamExtractionError,raw:array<string,string>}
 	 *
 	 * Examples: String with param constructor property in key/value pair separated by "=" sign.
 	 * 1. `"[name=firstName,type=TheWebSolver\Codegarage\Generator\Parameter,isReference=false]"`
@@ -144,48 +142,42 @@ final class Parameter {
 	 */
 	// phpcs:enable
 	public static function extractFrom( string $string, ?callable $validator = null ): array {
-		$params = str_replace( array( '[', ']' ), '', $string, $count );
-		$raw    = array();
-		$error  = null;
+		$args = str_replace( array( '[', ']' ), '', $string, $count );
 
 		if ( 2 !== $count ) {
-			$error = ParamExtractionError::of( 'extractionError', $params );
-
-			return compact( 'raw', 'error' );
+			return self::withError( error: ParamExtractionError::of( 'extractionError', $string ) );
 		}
 
-		foreach ( explode( ',', $params ) as $param ) {
-			$pair = array_values( explode( '=', $param, 2 ) );
+		$raw = array();
 
-			if ( strpos( $pair[1], '=' ) !== false ) {
-				$error = ParamExtractionError::of( 'invalidPair', $param );
+		foreach ( explode( ',', $args ) as $arg ) {
+			$pair = explode( '=', $arg, limit: 2 );
 
-				return compact( 'raw', 'error' );
+			if ( empty( $pair[1] ) || str_contains( $pair[1], needle: '=' ) ) {
+				return self::withError( error: ParamExtractionError::of( 'invalidPair', $arg ) );
 			}
 
-			list( $creationArg, $data ) = $pair;
+			[ $argName, $argValue ] = $pair;
 
-			if ( ! array_key_exists( $creationArg, self::CREATION_ARGS ) ) {
-				$error = ParamExtractionError::of( 'invalidCreationArg', $param );
-
-				return compact( 'raw', 'error' );
+			if ( ! ( self::CREATION_ARGS[ $argName ] ?? false ) ) {
+				return self::withError( error: ParamExtractionError::of( 'invalidCreationArg', $arg ) );
 			}
 
 			if ( ! is_null( $validator ) ) {
-				$sanitize = Closure::fromCallable( $validator );
-				$data     = $sanitize( $creationArg, $data, $string );
+				$argValue = $validator( $argName, $argValue, $string );
+
+				if ( $argValue instanceof ParamExtractionError ) {
+					return self::withError( error: $argValue );
+				}
 			}
 
-			$raw[ $creationArg ] = $data;
+			$raw[ $argName ] = $argValue;
 		}//end foreach
 
-		if ( ! array_key_exists( self::NAME, $raw ) ) {
-			$error = ParamExtractionError::of( 'noName', $params );
-
-			return compact( 'raw', 'error' );
-		}
-
-		return compact( 'raw', 'error' );
+		return self::withError(
+			error: ! isset( $raw[ self::NAME ] ) ? ParamExtractionError::of( 'noName', $args ) : null,
+			raw: $raw
+		);
 	}
 
 	/**
@@ -193,14 +185,13 @@ final class Parameter {
 	 * @phpstan-param ArgsAsArray $args
 	 */
 	public static function createFrom( array $args ): self {
-		$instance = self::create( ... );
-
-		return ( $parameter = call_user_func_array( $instance, $args ) ) instanceof self
+		return ( $parameter = call_user_func_array( self::create( ... ), $args ) ) instanceof self
 			? $parameter
 			: throw new InvalidArgumentException(
-				'The given args does not map with creation args. To view all supported args, see "'
-				. self::class
-				. '::CREATION_ARGS" constant.'
+				sprintf(
+					'The given args does not map with creation args. To view all supported args, see "%s".',
+					self::class . '::CREATION_ARGS'
+				)
 			);
 	}
 
@@ -235,7 +226,7 @@ final class Parameter {
 		);
 	}
 
-	public function getNetteParameter(): NetteParameter {
+	public function getNetteParameter(): PromotedParameter {
 		return $this->param;
 	}
 
@@ -313,10 +304,8 @@ final class Parameter {
 		return $this->type;
 	}
 
-	private function make(): NetteParameter {
-		$param = PHP_VERSION_ID >= 80000 && $this->promoted
-			? new PromotedParameter( $this->name )
-			: new NetteParameter( $this->name );
+	private function make(): PromotedParameter {
+		$param = new PromotedParameter( $this->name );
 
 		$param->setReference( $this->isReference );
 
@@ -372,21 +361,15 @@ final class Parameter {
 	}
 
 	private function prepareDefaultValueConstantName(): string {
-		static $constant = null;
-
-		if ( null === $constant ) {
-			if ( count( $parts = explode( '::', $this->defaultValue ) ) > 1 ) {
-				$parts[0] = Helpers::tagName( $parts[0] );
-			}
-
-			$constant = implode( '::', $parts );
+		if ( count( $parts = explode( '::', $this->defaultValue, limit: 2 ) ) > 1 ) {
+			$parts[0] = Helpers::tagName( $parts[0] );
 		}
 
-		return $constant;
+		return implode( '::', $parts );
 	}
 
 	/** @see \Nette\PhpGenerator\Factory::fromParameterReflection() */
-	private function parseDefaultValue( NetteParameter $param ): void {
+	private function parseDefaultValue( PromotedParameter $param ): void {
 		$default = $this->defaultValue;
 
 		if ( $this->isDefaultValueConstant ) {
@@ -394,7 +377,7 @@ final class Parameter {
 		} elseif ( is_string( $this->defaultValue ) && strpos( $this->defaultValue, '$', 0 ) === 0 ) {
 			$variable = str_replace( '$', '', $this->defaultValue );
 
-			if ( ! $setVariable = $$variable ?? null ) {
+			if ( ! $setVariable = ( $$variable ?? null ) ) {
 				$this->invalidValueKey = 'default';
 			}
 
@@ -403,5 +386,13 @@ final class Parameter {
 
 		$param->setDefaultValue( $default )
 			->setNullable( $param->isNullable() && null !== $param->getDefaultValue() );
+	}
+
+	/**
+	 * @param array<string,string> $raw
+	 * @return array{error:?ParamExtractionError,raw:array<string,string>}
+	 */
+	private static function withError( array $raw = array(), ?ParamExtractionError $error = null ): array {
+		return compact( 'raw', 'error' );
 	}
 }
