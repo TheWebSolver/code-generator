@@ -1,8 +1,4 @@
 <?php
-/**
- * @package TheWebSolver\CodeGenerator\DocParser
- */
-
 declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generators;
@@ -19,47 +15,39 @@ use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocChildNode as Node;
 use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocTextNode as TextNode;
 
 class DocParser {
-	protected ConstExprParser $const_parser;
-	protected PhpDocParser $doc_parser;
-	protected TypeParser $type_parser;
+	protected ConstExprParser $constParser;
+	protected PhpDocParser $docParser;
+	protected TypeParser $typeParser;
 	protected Lexer $lexer;
 
 	public function __construct() {
-		$this->lexer        = new Lexer();
-		$this->const_parser = new ConstExprParser();
-		$this->type_parser  = new TypeParser( $this->const_parser );
-		$this->doc_parser   = new PhpDocParser( $this->type_parser, $this->const_parser );
+		$this->lexer       = new Lexer();
+		$this->constParser = new ConstExprParser();
+		$this->typeParser  = new TypeParser( $this->constParser );
+		$this->docParser   = new PhpDocParser( $this->typeParser, $this->constParser );
 	}
 
-	/** @throws LogicException When method doesn't have docBlock.  */
+	/** @throws LogicException When method doesn't have docBlock. */
 	public static function fromMethod( ReflectionMethod $method ): PhpDocNode {
 		$parser = new self();
 
-		if ( ! is_string( $doc = $method->getDocComment() ) ) {
-			throw new LogicException(
-				sprintf( 'Method "%s" does not have doc block.', $method )
-			);
-		}
-
-		return $parser->doc_parser->parse(
-			new TokenIterator( $parser->lexer->tokenize( $doc ) )
-		);
+		return ! is_string( $doc = $method->getDocComment() )
+			? throw new LogicException( sprintf( 'Method "%s" does not have doc block.', $method ) )
+			: $parser->docParser->parse( new TokenIterator( $parser->lexer->tokenize( $doc ) ) );
 	}
 
 	public static function fromDocBlock( string $content ): PhpDocNode {
 		$parser = new self();
 
-		return $parser->doc_parser->parse(
-			new TokenIterator( $parser->lexer->tokenize( $content ) )
-		);
+		return $parser->docParser->parse( new TokenIterator( $parser->lexer->tokenize( $content ) ) );
 	}
 
 	/** @return TextNode[] */
 	public static function getTextNodes( PhpDocNode $nodes ): array {
 		return array_values(
 			array_filter(
-				$nodes->children,
-				fn( Node $node ): bool => $node instanceof TextNode && '' !== "$node"
+				array: $nodes->children,
+				callback: static fn( Node $node ): bool => $node instanceof TextNode && '' !== "$node"
 			)
 		);
 	}

@@ -1,5 +1,5 @@
 includes:
-	- phpstan.dev.neon
+	# - phpstan.dev.neon
 parameters:
 	level: max
 	paths:

@@ -1,8 +1,4 @@
 <?php
-/**
- * @package TheWebSolver\CodeGenerator\Parameter
- */
-
 declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Data;

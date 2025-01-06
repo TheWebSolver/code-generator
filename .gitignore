@@ -5,6 +5,7 @@
 !phpcs.xml.dist
 !code-generator.php
 !phpstan.neon
+!.editorconfig
 
 # Directories
 !/src

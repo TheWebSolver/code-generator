@@ -1,8 +1,4 @@
 <?php
-/**
- * @package TheWebSolver\CodeGenerator\Parameter
- */
-
 declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generators;
@@ -18,7 +14,16 @@ use Nette\PhpGenerator\Parameter as NetteParameter;
 use TheWebSolver\Codegarage\Data\ParamExtractionError;
 
 /**
- * @phpstan-type ArgsAsArray array{name:string,position:int,type:?string,defaultValue:mixed,isReference:bool,isVariadic:bool,isNullable:bool,isPromoted:bool}
+ * @phpstan-type ArgsAsArray array{
+ *  name:string,
+ *  position:int,
+ *  type:?string,
+ *  defaultValue:mixed,
+ *  isReference:bool,
+ *  isVariadic:bool,
+ *  isNullable:bool,
+ *  isPromoted:bool
+ * }
  */
 final class Parameter {
 	public const REFERENCE = 'isReference';
@@ -81,7 +86,7 @@ final class Parameter {
 		$this->promoted    = $isPromoted;
 		$this->position    = $position;
 		$this->name        = (string) $this->validate( value: $name, type: 'name' );
-		$this->type        = $this->validate( value: $type, type: 'typehint', isNullable: true );
+		$this->type        = $this->validate( value: $type, type: 'type-hint', isNullable: true );
 		$this->param       = $this->make();
 	}
 
@@ -99,27 +104,28 @@ final class Parameter {
 		return new self( ...func_get_args() );
 	}
 
+	// phpcs:disable Squiz.Commenting.FunctionComment.ParamNameNoMatch
 	/**
 	 * Extracts parameter properties from given string data.
 	 *
 	 * @param null|(callable(string $arg, string $value, string $param): string) $validator The validator.
-	 * @return array<string,\TheWebSolver\Codegarage\Data\ParamExtractionError|array<string,string>|null>
+	 * @return array{error:?\TheWebSolver\Codegarage\Data\ParamExtractionError, raw:array<string,string>}
 	 *
 	 * Examples: String with param constructor property in key/value pair separated by "=" sign.
 	 * 1. `"[name=firstName,type=TheWebSolver\Codegarage\Generators\Parameter,isReference=false]"`
 	 * 2. `"[name=last,isVariadic=true,type=string]"`
 	 * 3. `"[name=middle,type=string,isNullable=true]"`
-	 * 4. `"[name=typeasBool,type=bool,defaultValue=true,isPromoted=false]"`
+	 * 4. `"[name=typeAsBool,type=bool,defaultValue=true,isPromoted=false]"`
 	 * 5. `"[type=array,isPromoted=true,isNullable=false,isVariadic=true]"`
 	 *
-	 * The converted data will be, of example number 4 & 5, will be as follow:
+	 * The converted data of example number 4 & 5 will be as follow:
 	 * Keep in mind, each values are still in `string` and
-	 * needs to be typcasted appropriately.
+	 * needs to be type-casted appropriately.
 	 *
 	 * ```
 	 * $example_4_withoutError = array(
 	 *   'raw'   => array(
-	 *     'name'         => 'typeasBool',
+	 *     'name'         => 'typeAsBool',
 	 *     'type'         => 'bool',
 	 *     'isPromoted'   => 'false',
 	 *     'defaultValue' => 'true',
@@ -135,8 +141,8 @@ final class Parameter {
 	 *   ),,
 	 * );
 	 * ```
-	 * @phpstan-return array{error:?\TheWebSolver\Codegarage\Data\ParamExtractionError, raw:array<string,string>}
 	 */
+	// phpcs:enable
 	public static function extractFrom( string $string, ?callable $validator = null ): array {
 		$params = str_replace( array( '[', ']' ), '', $string, $count );
 		$raw    = array();
@@ -189,15 +195,13 @@ final class Parameter {
 	public static function createFrom( array $args ): self {
 		$instance = self::create( ... );
 
-		if ( ( $parameter = call_user_func_array( $instance, $args ) ) instanceof self ) {
-			return $parameter;
-		};
-
-		throw new InvalidArgumentException(
-			'The given args does not map with creation args. To view all supported args, see "'
+		return ( $parameter = call_user_func_array( $instance, $args ) ) instanceof self
+			? $parameter
+			: throw new InvalidArgumentException(
+				'The given args does not map with creation args. To view all supported args, see "'
 				. self::class
 				. '::CREATION_ARGS" constant.'
-		);
+			);
 	}
 
 	public static function validateCreationArg( string $name ): void {
@@ -212,12 +216,12 @@ final class Parameter {
 		}
 	}
 
-	/** @phpstan-param array{position?:int,defaultValue?:mixed} $newValues */
+	/** @param array{position?:int,defaultValue?:mixed} $newValues */
 	public function recreateWith( array $newValues ): self {
 		return self::createFrom( array( ...$this->toArray(), ...$newValues ) );
 	}
 
-	/** @phpstan-return ArgsAsArray */
+	/** @return ArgsAsArray */
 	public function toArray(): array {
 		return $this->asArray ??= array(
 			self::REFERENCE => $this->isPassedByReference(),
@@ -331,7 +335,7 @@ final class Parameter {
 
 	/**
 	 * @throws InvalidArgumentException When given value is empty.
-	 * @phpstan-return ($isNullable is true ? string|null : string )
+	 * @return ($isNullable is true ? string|null : string)
 	 */
 	private function validate( ?string $value, string $type, bool $isNullable = false ): ?string {
 		if ( null === $value && $isNullable ) {

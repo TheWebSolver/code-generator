@@ -1,8 +1,4 @@
 <?php
-/**
- * @package TheWebSolver\CodeGenerator\Class
- */
-
 declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generators;
@@ -25,11 +21,9 @@ class NamespacedClass {
 	/** @var string[] */
 	private array $implements = array();
 	private string $extends   = '';
-	private string $name;
 
-	public function __construct( string $namespace ) {
-		$this->namespace = new PhpNamespace( self::stripSlashesFrom( $namespace ) );
-		$this->name      = self::makeFqcnFor( $this->namespace->getName() );
+	public function __construct( string $currentNamespace ) {
+		$this->namespace = new PhpNamespace( self::stripSlashesFrom( $currentNamespace ) );
 	}
 
 	public function __toString() {
@@ -40,60 +34,55 @@ class NamespacedClass {
 		return $this->namespace;
 	}
 
-	public static function from( string $namespace ): self {
-		return new self( $namespace );
+	public static function from( string $currentNamespace ): self {
+		return new self( $currentNamespace );
 	}
 
 	public static function stripSlashesFrom( string $fqcn ): string {
 		return trim( $fqcn, '\\' );
 	}
 
-	public static function makeFqcnFor( string $name ): string {
-		return '\\' . self::stripSlashesFrom( $name );
+	public static function makeFqcnFor( string $className ): string {
+		return '\\' . self::stripSlashesFrom( $className );
 	}
 
-	/**
-	 * @return string|array<int,string>
-	 * @phpstan-return ($classNameOnly is false ? array<int,string> : string)
-	 */
+	/** @return ($classNameOnly is false ? array<int,string> : string) */
 	public static function resolveClassNameFrom( string $fqcn, bool $classNameOnly = true ) {
-		$parts = array_filter( explode( '\\', $fqcn ), fn( string $part ): bool => '' !== $part );
+		$parts = array_filter( explode( '\\', $fqcn ), static fn( string $part ): bool => '' !== $part );
 
 		return ! $classNameOnly ? $parts : ( array_pop( $parts ) ?? '' );
 	}
 
-	/**
-	 * @param int|string $alias The import alias.
-	 * @return array<int,string>
-	 */
-	public static function resolveImportFrom( string $name, $alias = 0 ): array {
+	/** @return array{0:string,1:string} Fully qualified classname and its alias. */
+	public static function resolveImportFrom( string $fqcn, string|int $alias = 0 ): array {
 		if ( ! is_string( $alias ) || '' === $alias ) {
-			$alias = self::resolveClassNameFrom( self::makeFqcnFor( $name ) );
+			$alias = self::resolveClassNameFrom( self::makeFqcnFor( $fqcn ) );
 		}
 
-		return array( $name, $alias );
+		return array( $fqcn, $alias );
 	}
 
-	public static function fromMethod( string $class, string $name ): ReflectionMethod {
-		return new ReflectionMethod( $class, $name );
+	public static function fromMethod( string $className, string $methodName ): ReflectionMethod {
+		return new ReflectionMethod( $className, $methodName );
 	}
 
 	public function resolveImportedAliasFrom( string $fqcn ): string {
-		$classname = self::resolveClassNameFrom( $fqcn );
+		$className = self::resolveClassNameFrom( $fqcn );
 
-		return ! array_key_exists( $classname, $this->namespace->getUses() )
+		return ! array_key_exists( $className, $this->namespace->getUses() )
 			? self::makeFqcnFor( $fqcn )
-			: $classname;
+			: $className;
 	}
 
 	/** @throws InvalidArgumentException When namespace mismatch. */
 	public function prepareClassNameFrom( string $fqcn ): string {
 		$rawFqcn     = $fqcn;
 		$fqcn        = self::makeFqcnFor( $fqcn );
-		$isClassOnly = 1 === count( $parts = (array) self::resolveClassNameFrom( $fqcn, false ) );
+		$isClassOnly = 1 === count( $parts = self::resolveClassNameFrom( $fqcn, false ) );
 		$className   = (string) array_pop( $parts );
+		$namespace   = $this->namespace->getName();
 
-		if ( $isClassOnly || strpos( $fqcn, "{$this->name}\\" ) !== false ) {
+		if ( $isClassOnly || strpos( $fqcn, self::makeFqcnFor( $namespace ) . '\\' ) !== false ) {
 			return $className;
 		}
 
@@ -101,7 +90,7 @@ class NamespacedClass {
 			sprintf(
 				'Given Fully Qualified Class Name "%1$s" does not belong with the current namespace "%2$s". The given classname "%3$s" belongs to "%4$s" namespace.',
 				$rawFqcn,
-				$this->namespace->getName(),
+				$namespace,
 				$className,
 				implode( '\\', $parts )
 			)
@@ -136,29 +125,34 @@ class NamespacedClass {
 	}
 
 	/** @throws LogicException When this method is called before class is created. */
-	public function getMethod( string $name ): Method {
-		return $this->getClass()->getMethod( $name );
+	public function getMethod( string $methodName ): Method {
+		return $this->getClass()->getMethod( $methodName );
 	}
 
-	/** @param string|Method $method */
-	public function resolveMethod( $method ): Method {
-		return is_string( $method ) ? $this->getMethod( $method ) : $method;
+	public function resolveMethod( string|Method $method ): Method {
+		return $method instanceof Method ? $method : $this->getMethod( $method );
 	}
 
 	/**
-	 * @param string|string[] $implements The interface names that the given class implements.
+	 * @param string               $className
+	 * @param string               $extendsName
+	 * @param string|string[]|null $implementsName The interface names that the given class implements.
 	 * @throws InvalidArgumentException When fully qualified classname given & namespace mismatch.
 	 */
-	public function createClass( string $name, string $extends = null, $implements = null ): self {
-		$class = $this->namespace->addClass( $this->prepareClassNameFrom( $name ) );
+	public function createClass(
+		string $className,
+		string $extendsName = null,
+		string|array|null $implementsName = null
+	): self {
+		$class = $this->namespace->addClass( $this->prepareClassNameFrom( $className ) );
 
-		if ( $extends ) {
-			$class->addExtend( $this->extends = $extends );
+		if ( $extendsName ) {
+			$class->addExtend( $this->extends = $extendsName );
 		}
 
-		if ( $implements ) {
+		if ( $implementsName ) {
 			$class->setImplements(
-				$this->implements = is_array( $implements ) ? $implements : array( $implements )
+				$this->implements = is_array( $implementsName ) ? $implementsName : array( $implementsName )
 			);
 		}
 
@@ -216,16 +210,19 @@ class NamespacedClass {
 		return $this;
 	}
 
-	/** @param string[] $names */
+	/**
+	 * @param string   $fromClassName
+	 * @param string[] $methodNames
+	 */
 	public function withMethods(
-		string $fromClass,
-		array $names,
+		string $fromClassName,
+		array $methodNames,
 		bool $title = true,
 		bool $desc = false,
 		bool $returnOnDoc = false
 	): self {
-		foreach ( $names as $name ) {
-			$this->withMethod( $fromClass, $name, $title, $desc, $returnOnDoc );
+		foreach ( $methodNames as $name ) {
+			$this->withMethod( $fromClassName, $name, $title, $desc, $returnOnDoc );
 		}
 
 		return $this;
@@ -235,13 +232,10 @@ class NamespacedClass {
 	public function using( array $imports ): self {
 		$imports = array_merge( $imports, array( $this->extends ), $this->implements );
 
-		foreach ( $imports as $key => $name ) {
-			// Do not add import for "extends" and "implements" if class doesn't have any.
-			if ( empty( $name ) ) {
-				continue;
+		foreach ( $imports as $alias => $className ) {
+			if ( ! empty( $className ) ) {
+				$this->namespace->addUse( ...self::resolveImportFrom( $className, $alias ) );
 			}
-
-			$this->namespace->addUse( ...self::resolveImportFrom( $name, $key ) );
 		}
 
 		return $this;
@@ -252,23 +246,23 @@ class NamespacedClass {
 	 * @param ParamTagValueNode[]   $nodes  The doc comment params.
 	 * @param ReflectionParameter[] $args   The method arg params.
 	 */
-	public function attachParamsToMethod( $method, array $nodes, array $args ): void {
+	public function attachParamsToMethod( string|Method $method, array $nodes, array $args ): void {
 		$method     = $this->resolveMethod( $method );
 		$isVariadic = false;
 
 		array_walk( $nodes, fn( ParamTagValueNode $node ) => $method->addComment( "@param {$node}" ) );
 		array_walk(
 			$args,
-			function( ReflectionParameter $arg ) use ( $method, &$isVariadic ) {
+			function ( ReflectionParameter $arg ) use ( $method, &$isVariadic ) {
 				try {
 					$param = $method->addParameter( $arg->getName(), $arg->getDefaultValue() );
-				} catch ( ReflectionException $e ) {
+				} catch ( ReflectionException ) {
 					$param = $method->addParameter( $arg->getName() );
 				}
 
 				$param->setReference( $arg->isPassedByReference() );
 
-				// Union type is not supported.
+				// Only NamedType is supported.
 				if ( ( $type = $arg->getType() ) instanceof ReflectionNamedType ) {
 					$param->setType( $type->getName() );
 				}
@@ -282,9 +276,12 @@ class NamespacedClass {
 		$method->setVariadic( $isVariadic );
 	}
 
-	/** @param string|Method $method */
 	public function attachReturnToMethod(
-		$method, ReflectionMethod $reflection, PhpDocNode $node, bool $doc = false, bool $head = true
+		string|Method $method,
+		ReflectionMethod $reflection,
+		PhpDocNode $node,
+		bool $doc = false,
+		bool $head = true
 	): self {
 		$tags     = $node->getReturnTagValues();
 		$return   = array_shift( $tags );
@@ -314,8 +311,7 @@ class NamespacedClass {
 		return $this;
 	}
 
-	/** @param string|Method $method */
-	public function attachBodyToMethod( $method, string $content ): self {
+	public function attachBodyToMethod( string|Method $method, string $content ): self {
 		$this->resolveMethod( $method )->addBody( $content );
 
 		return $this;
