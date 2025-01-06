@@ -18,7 +18,7 @@
   },
   "autoload": {
     "psr-4": {
-      "TheWebSolver\\Codegarage\\": "src/"
+      "TheWebSolver\\Codegarage\\": "Src/"
     }
   },
   "autoload-dev": {
