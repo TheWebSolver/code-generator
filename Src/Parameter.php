@@ -1,7 +1,7 @@
 <?php
 declare( strict_types = 1 );
 
-namespace TheWebSolver\Codegarage\Generators;
+namespace TheWebSolver\Codegarage\Generator;
 
 use Closure;
 use Nette\Utils\Type;
@@ -11,7 +11,7 @@ use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PromotedParameter;
 use Nette\PhpGenerator\Parameter as NetteParameter;
-use TheWebSolver\Codegarage\Data\ParamExtractionError;
+use TheWebSolver\Codegarage\Generator\Data\ParamExtractionError;
 
 /**
  * @phpstan-type ArgsAsArray array{
@@ -109,10 +109,10 @@ final class Parameter {
 	 * Extracts parameter properties from given string data.
 	 *
 	 * @param null|(callable(string $arg, string $value, string $param): string) $validator The validator.
-	 * @return array{error:?\TheWebSolver\Codegarage\Data\ParamExtractionError, raw:array<string,string>}
+	 * @return array{error:?ParamExtractionError, raw:array<string,string>}
 	 *
 	 * Examples: String with param constructor property in key/value pair separated by "=" sign.
-	 * 1. `"[name=firstName,type=TheWebSolver\Codegarage\Generators\Parameter,isReference=false]"`
+	 * 1. `"[name=firstName,type=TheWebSolver\Codegarage\Generator\Parameter,isReference=false]"`
 	 * 2. `"[name=last,isVariadic=true,type=string]"`
 	 * 3. `"[name=middle,type=string,isNullable=true]"`
 	 * 4. `"[name=typeAsBool,type=bool,defaultValue=true,isPromoted=false]"`

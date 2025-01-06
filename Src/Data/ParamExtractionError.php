@@ -1,7 +1,7 @@
 <?php
 declare( strict_types = 1 );
 
-namespace TheWebSolver\Codegarage\Data;
+namespace TheWebSolver\Codegarage\Generator\Data;
 
 final class ParamExtractionError {
 	private string $value;

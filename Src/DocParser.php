@@ -1,7 +1,7 @@
 <?php
 declare( strict_types = 1 );
 
-namespace TheWebSolver\Codegarage\Generators;
+namespace TheWebSolver\Codegarage\Generator;
 
 use LogicException;
 use ReflectionMethod;
