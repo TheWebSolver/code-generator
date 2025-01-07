@@ -11,6 +11,3 @@ composer.lock
 # Directories
 !Src
 !Tests
-Src/*
-!Src/*.php
-!Src/Data
