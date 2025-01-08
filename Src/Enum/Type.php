@@ -46,9 +46,7 @@ enum Type: string {
 	}
 
 	public static function castToFalseIfNotTrue( mixed $value ): string {
-		return in_array( $value, array( self::TRUTHY, self::FALSY ), strict: true )
-			? $value
-			: self::FALSY;
+		return in_array( $value, array( self::TRUTHY, self::FALSY ), strict: true ) ? $value : self::FALSY;
 	}
 
 	public static function match( mixed $value ): mixed {
@@ -59,12 +57,12 @@ enum Type: string {
 		};
 	}
 
-	public static function toBoolByValueOrType( mixed $value, ?string $type = null ): ?string {
+	public static function castToBoolByValueOrType( mixed $value, ?string $type = null ): ?string {
 		return self::isBool( $type ) ? self::getBoolFrom( $value ) : null;
 	}
 
 	public static function castImplicitBool( string $value, string $type ): string {
-		return null === ( $bool = self::toBoolByValueOrType( $value, $type ) ) ? $value : $bool;
+		return null === ( $bool = self::castToBoolByValueOrType( $value, $type ) ) ? $value : $bool;
 	}
 
 	public static function toBool( mixed $value ): bool {

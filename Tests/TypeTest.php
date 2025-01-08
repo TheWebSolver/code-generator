@@ -18,7 +18,7 @@ class TypeTest extends TestCase {
 		?string $type,
 		?string $expected = null
 	): void {
-		$this->assertSame( $expected, actual: Type::toBoolByValueOrType( $value, $type ) );
+		$this->assertSame( $expected, actual: Type::castToBoolByValueOrType( $value, $type ) );
 	}
 
 	public static function provideBoolValueAndType(): array {
@@ -195,23 +195,23 @@ class TypeTest extends TestCase {
 
 	#[Test]
 	#[DataProvider( 'provideValueToBeMatched' )]
-	public function itConvertsToBooleanType( mixed $value, mixed $expected ): void {
-		$this->assertSame( true === $expected, actual: Type::toBool( $value ) );
+	public function itConvertsToBooleanType( mixed $value, mixed $expected, ?bool $converted = null ): void {
+		$this->assertSame( $converted ?? $expected, actual: Type::toBool( $value ) );
 	}
 
 	public static function provideValueToBeMatched(): array {
 		return array(
 			array( true, true ),
 			array( false, false ),
-			array( null, null ),
-			array( array(), array() ),
-			array( 25, 25 ),
+			array( null, null, false ),
+			array( array(), array(), false ),
+			array( 25, 25, false ),
 			array( 'true', true ),
 			array( 'false', false ),
-			array( 'array()', array() ),
-			array( fn(): int => 1, fn(): int => 1 ),
-			array( 'array', 'array' ),
-			array( 'everything-else', 'everything-else' ),
+			array( 'array()', array(), false ),
+			array( fn(): int => 1, fn(): int => 1, false ),
+			array( 'array', 'array', false ),
+			array( 'everything-else', 'everything-else', false ),
 		);
 	}
 }
