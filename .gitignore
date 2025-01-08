@@ -1,13 +1,9 @@
 /*
-!.gitignore
-!composer.json
-composer.lock
-!phpcs.xml.dist
-!code-generator.php
-!phpstan.neon
 !.editorconfig
+!composer.json
+!phpcs.xml.dist
+!phpstan.neon
 !phpunit.xml.dist
 
-# Directories
 !Src
 !Tests
