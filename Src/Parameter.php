@@ -9,8 +9,7 @@ use InvalidArgumentException;
 use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PromotedParameter;
-use TheWebSolver\Codegarage\Generator\Data\ParamExtractionError;
-use TheWebSolver\Codegarage\Generator\Error\ParamExtractionException as Error;
+use TheWebSolver\Codegarage\Generator\Error\ParamExtractionException as ExtractionError;
 
 /**
  * @phpstan-type ArgsAsArray array{
@@ -107,9 +106,12 @@ final class Parameter {
 	/**
 	 * Extracts parameter properties from given string data.
 	 *
-	 * @param (callable(string $attributeName, string $AttributeValue, string $acceptedString): (string|ParamExtractionError))|null $validator External validator to validate the extracted attribute & its value. It must return an instance of `ParamExtractionError` if attribute name or its value cannot be validated.
+	 * @param null|(callable(array<string,string> $processed, string $raw): (array<string,string>|null)) $validator
+	 *                                                                          External validator to validate the extracted argument & its value.
+	 *                                                                          It must return the updated processed value. In case validation
+	 *                                                                          fails, then it must return `null`.
 	 * @return array<string,string>
-	 * @throws Error When extraction fails. Error code will be value of one of its constant.
+	 * @throws ExtractionError When extraction fails. Error code will be value of one of its constant.
 	 *
 	 * Examples: String with param constructor property in key/value pair separated by "=" sign.
 	 * 1. `"[name=firstName,type=TheWebSolver\Codegarage\Generator\Parameter,isReference=false]"`
@@ -135,39 +137,32 @@ final class Parameter {
 	 */
 	// phpcs:enable
 	public static function extractFrom( string $string, ?callable $validator = null ): array {
-		$args = str_replace( array( '[', ']' ), '', $string, $count );
+		$parts = str_replace( array( '[', ']' ), '', $string, $count );
 
 		if ( 2 !== $count ) {
-			self::throwExtractionError( Error::NOT_ENCLOSED_IN_BRACKETS );
+			self::throwExtractionError( ExtractionError::NOT_ENCLOSED_IN_BRACKETS );
 		}
 
-		$raw = array();
+		$args = array();
 
-		foreach ( explode( separator: ',', string: $args ) as $arg ) {
-			$pair = explode( separator: '=', string: $arg, limit: 2 );
+		foreach ( explode( separator: ',', string: $parts ) as $part ) {
+			$pair = explode( separator: '=', string: $part, limit: 2 );
 
 			if ( empty( $pair[1] ) || str_contains( $pair[1], needle: '=' ) ) {
-				self::throwExtractionError( Error::INVALID_PAIR );
+				self::throwExtractionError( ExtractionError::INVALID_PAIR );
 			}
 
-			[ $argName, $argValue ] = $pair;
+			[ $name, $value ] = $pair;
+			$args[ $name ]    = ! isset( self::CREATION_ARGS[ $name ] )
+				? self::throwExtractionError( ExtractionError::INVALID_CREATION_ARG )
+				: $value;
+		}
 
-			if ( ! ( self::CREATION_ARGS[ $argName ] ?? false ) ) {
-				self::throwExtractionError( Error::INVALID_CREATION_ARG );
-			}
+		if ( $validator && ( ! $args = $validator( $args, $string ) ) ) {
+			self::throwExtractionError( ExtractionError::FROM_VALIDATOR );
+		}
 
-			if ( ! is_null( $validator ) ) {
-				$argValue = $validator( $argName, $argValue, $string );
-
-				if ( $argValue instanceof ParamExtractionError ) {
-					self::throwExtractionError( Error::FROM_VALIDATOR );
-				}
-			}
-
-			$raw[ $argName ] = $argValue;
-		}//end foreach
-
-		return isset( $raw[ self::NAME ] ) ? $raw : self::throwExtractionError( Error::NO_NAME_ARG );
+		return isset( $args[ self::NAME ] ) ? $args : self::throwExtractionError( ExtractionError::NO_NAME_ARG );
 	}
 
 	/**
@@ -379,6 +374,6 @@ final class Parameter {
 	}
 
 	private static function throwExtractionError( int $code ): never {
-		throw new Error( 'Extraction Error', $code );
+		throw new ExtractionError( 'Extraction Error', $code );
 	}
 }

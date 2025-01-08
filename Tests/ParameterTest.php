@@ -8,8 +8,7 @@ use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\DataProvider;
 use TheWebSolver\Codegarage\Generator\Parameter;
-use TheWebSolver\Codegarage\Generator\Data\ParamExtractionError;
-use TheWebSolver\Codegarage\Generator\Error\ParamExtractionException as Error;
+use TheWebSolver\Codegarage\Generator\Error\ParamExtractionException as ExtractionError;
 
 class ParameterTest extends TestCase {
 	#[Test]
@@ -29,11 +28,11 @@ class ParameterTest extends TestCase {
 
 	public static function provideExtractionString(): array {
 		return array(
-			array( 'not inside bracket', Error::NOT_ENCLOSED_IN_BRACKETS ),
-			array( '[name]', Error::INVALID_PAIR ),
-			array( '[name=valueContains=sign]', Error::INVALID_PAIR ),
-			array( '[invalidArg=value]', Error::INVALID_CREATION_ARG ),
-			array( '[type=string]', Error::NO_NAME_ARG ),
+			array( 'not inside bracket', ExtractionError::NOT_ENCLOSED_IN_BRACKETS ),
+			array( '[name]', ExtractionError::INVALID_PAIR ),
+			array( '[name=valueContains=sign]', ExtractionError::INVALID_PAIR ),
+			array( '[invalidArg=value]', ExtractionError::INVALID_CREATION_ARG ),
+			array( '[type=string]', ExtractionError::NO_NAME_ARG ),
 			array(
 				'string'        => '[name=test,type=string]',
 				'errorCode'     => null,
@@ -49,17 +48,23 @@ class ParameterTest extends TestCase {
 					'name' => 'valueFromValidator',
 					'type' => 'string',
 				),
-				'validator'     => static function ( string $arg, string $value, string $param ): string {
-					return 'name' === $arg && 'test' === $value && str_contains( $param, 'name=test' )
-						? 'valueFromValidator'
-						: $value;
+				'validator'     => static function ( array $processed, string $raw ): ?array {
+					if ( ! isset( $processed['name'] ) ) {
+						return $processed;
+					}
+
+					if ( 'test' === $processed['name'] && str_contains( $raw, 'name=test' ) ) {
+						$processed['name'] = 'valueFromValidator';
+					}
+
+					return $processed;
 				},
 			),
 			array(
 				'string'        => '[name=value]',
-				'errorCode'     => Error::FROM_VALIDATOR,
+				'errorCode'     => ExtractionError::FROM_VALIDATOR,
 				'expectedValue' => array(),
-				'validator'     => static fn() => ParamExtractionError::of( 'validator', 'name=value' ),
+				'validator'     => static fn() => null, /* or empty array */
 			),
 		);
 	}
