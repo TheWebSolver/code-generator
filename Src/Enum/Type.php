@@ -7,80 +7,35 @@ use Throwable;
 use ValueError;
 
 enum Type: string {
-	case PossibleTruthy = 'true,on,yes,1';
-	case PossibleFalsy  = 'false,off,no,0';
-	case EmptyArray     = 'array()';
+	case Object = 'object';
+	case String = 'string';
+	case Float  = 'float';
+	case Array  = 'array';
+	case Bool   = 'bool';
+	case Null   = 'null';
+	case Int    = 'int';
 
-	// Set types.
-	case HintObject = 'object';
-	case HintString = 'string';
-	case HintArray  = 'array';
-	case HintFloat  = 'float';
-	case HintBool   = 'bool';
-	case HintNull   = 'null';
-	case HintInt    = 'int';
-
-	// Get types.
-	case Truthy = 'true';
-	case Falsy  = 'false';
-	case Float  = 'double';
-	case Bool   = 'boolean';
-	case Null   = 'NULL';
-	case Int    = 'integer';
-
-	public function resolve(): string {
-		return match ( $this ) {
-			// Currently doesn't support "unknown type". Defaults to an empty string.
-			default                                                => '',
-			self::HintBool, self::Truthy, self::Falsy, self::Bool => self::Bool->value,
-			self::HintInt, self::Int                              => self::Int->value,
-			self::HintNull, self::Null                            => self::Null->value,
-			self::HintFloat, self::Float                          => self::Float->value,
-			self::HintString                                      => self::HintString->value,
-			self::HintArray                                       => self::HintArray->value,
-			self::HintObject                                      => self::HintObject->value,
-		};
-	}
-
-	public function isInferable(): bool {
-		return in_array( $this, self::inferable(), strict: true );
-	}
-
-	/**
-	 * @return static[]
-	 * @link https://www.php.net/manual/en/function.gettype.php
-	 */
-	public static function inferable(): array {
-		return array(
-			self::HintString,
-			self::Bool,
-			self::HintBool,
-			self::Int,
-			self::HintInt,
-			self::Float,
-			self::HintFloat,
-			self::Null,
-			self::HintNull,
-			self::HintObject,
-		);
-	}
-
-	/** @return string[] */
-	public static function hints(): array {
-		return array_column( array_filter( self::cases(), self::canBeHinted( ... ) ), column_key: 'value' );
-	}
-
-	public static function castToFalseIfNotTrue( mixed $value ): string {
-		return in_array( $value, array( self::Truthy->value, self::Falsy->value ), strict: true )
-			? $value
-			: self::Falsy->value;
-	}
+	public const POSSIBLE_TRUTHY = 'true,on,yes,1';
+	public const POSSIBLE_FALSY  = 'false,off,no,0';
+	public const EMPTY_ARRAY     = 'array()';
+	public const TRUTHY          = 'true';
+	public const FALSY           = 'false';
+	public const BOOL_ALT        = 'boolean';
+	public const FLOAT_ALT       = 'double';
+	public const INT_ALT         = 'integer';
 
 	/** @throws ValueError When value cannot be type casted. */
 	public static function set( mixed $value, string $type ): mixed {
 		try {
-			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Setting type OK.
-			@settype( $value, type: self::from( $type )->resolve() );
+			// phpcs:disable WordPress.PHP.NoSilencedErrors.Discouraged -- Setting type OK.
+			match ( $type ) {
+				self::INT_ALT, self::FLOAT_ALT => @settype( $value, $type ),
+				self::BOOL_ALT                 => @settype( $value, self::Bool->value ),
+				self::TRUTHY                   => $value = true,
+				self::FALSY                    => $value = false,
+				default                        => @settype( $value, self::from( $type )->value )
+			};
+			// phpcs:enable
 
 			return $value;
 		} catch ( Throwable ) {
@@ -90,16 +45,22 @@ enum Type: string {
 		}
 	}
 
+	public static function castToFalseIfNotTrue( mixed $value ): string {
+		return in_array( $value, array( self::TRUTHY, self::FALSY ), strict: true )
+			? $value
+			: self::FALSY;
+	}
+
 	public static function match( mixed $value ): mixed {
 		return match ( $value ) {
 			self::castToFalseIfNotTrue( $value ) => filter_var( $value, FILTER_VALIDATE_BOOL, array( 'default' => false ) ),
-			self::EmptyArray->value              => array(),
+			self::EMPTY_ARRAY                    => array(),
 			default                              => $value,
 		};
 	}
 
 	public static function toBoolByValueOrType( mixed $value, ?string $type = null ): ?string {
-		return self::isBool( $type ) ? self::getBoolTypeFrom( $value ) : null;
+		return self::isBool( $type ) ? self::getBoolFrom( $value ) : null;
 	}
 
 	public static function castImplicitBool( string $value, string $type ): string {
@@ -107,38 +68,38 @@ enum Type: string {
 	}
 
 	public static function toBool( mixed $value ): bool {
-		return true === self::match( self::getBoolTypeFrom( $value ) );
+		return true === self::match( self::getBoolFrom( $value ) );
 	}
 
 	/** @throws ValueError When value cannot be type casted. */
 	public static function cast( mixed $value, string $type ): mixed {
 		return match ( $type ) {
-			self::HintString->value => self::set( $value, $type ),
-			self::HintArray->value  => self::match( $value ),
-			self::HintFloat->value  => self::set( $value, $type ),
-			self::HintBool->value   => self::match( $value ),
-			self::HintInt->value    => self::set( $value, $type ),
-			default                 => $value,
+			self::Object->value => self::set( $value, $type ),
+			self::String->value => self::set( $value, $type ),
+			self::Array->value  => self::match( $value ),
+			self::Float->value  => self::set( $value, $type ),
+			self::Bool->value   => self::match( $value ),
+			self::Null->value   => self::set( $value, $type ),
+			self::Int->value    => self::set( $value, $type ),
+			default             => $value,
 		};
 	}
 
-	private static function canBeHinted( Type $type ): bool {
-		return str_starts_with( $type->name, needle: 'Hint' );
-	}
-
 	private static function isBool( ?string $type ): bool {
-		return ! ( null !== $type && self::Bool->value !== self::tryFrom( $type )?->resolve() );
+		return ( self::TRUTHY === $type || self::FALSY === $type || self::BOOL_ALT === $type )
+			? true
+			: ! ( null !== $type && self::Bool->value !== self::tryFrom( $type )?->value );
 	}
 
 	private static function isTruthy( mixed $value ): bool {
 		return in_array(
 			needle: $value,
-			haystack: array( true, ...explode( separator: ',', string: self::PossibleTruthy->value ) ),
+			haystack: array( true, ...explode( separator: ',', string: self::POSSIBLE_TRUTHY ) ),
 			strict: true
 		);
 	}
 
-	private static function getBoolTypeFrom( mixed $value ): string {
-		return self::isTruthy( $value ) ? self::Truthy->value : self::Falsy->value;
+	private static function getBoolFrom( mixed $value ): string {
+		return self::isTruthy( $value ) ? self::TRUTHY : self::FALSY;
 	}
 }

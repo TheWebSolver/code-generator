@@ -12,59 +12,6 @@ use TheWebSolver\Codegarage\Generator\Enum\Type;
 
 class TypeTest extends TestCase {
 	#[Test]
-	public function itResolvesTypeThatCanBeLongerFormOrAlternateName(): void {
-		foreach ( array( Type::Bool, Type::HintBool, Type::Truthy, Type::Falsy ) as $bool ) {
-			$this->assertSame( 'boolean', $bool->resolve() );
-		}
-
-		foreach ( array( Type::HintInt, Type::Int ) as $int ) {
-			$this->assertSame( 'integer', $int->resolve() );
-		}
-
-		foreach ( array( Type::HintNull, Type::Null ) as $null ) {
-			$this->assertSame( 'NULL', $null->resolve() );
-		}
-
-		foreach ( array( Type::HintFloat, Type::Float ) as $float ) {
-			$this->assertSame( 'double', $float->resolve() );
-		}
-
-		$this->assertSame( 'string', Type::HintString->resolve() );
-		$this->assertSame( 'array', Type::HintArray->resolve() );
-		$this->assertSame( 'object', Type::HintObject->resolve() );
-	}
-
-	#[Test]
-	public function itReturnsOnlyTypesWillActuallyBeUsedForTypeHint(): void {
-		$this->assertEmpty(
-			array_diff( array( 'object', 'string', 'array', 'float', 'bool', 'null', 'int' ), Type::hints() )
-		);
-	}
-
-	#[Test]
-	public function itReturnsOnlyTypesThatCanBeTypeHinted(): void {
-		$list = array(
-			Type::HintString,
-			Type::Bool,
-			Type::HintBool,
-			Type::Int,
-			Type::HintInt,
-			Type::Float,
-			Type::HintFloat,
-			Type::Null,
-			Type::HintNull,
-			Type::HintObject,
-		);
-
-		$this->assertCount( 10, $inferable = Type::inferable() );
-
-		foreach ( $list as $type ) {
-			$this->assertTrue( $type->isInferable() );
-			$this->assertTrue( in_array( $type, $inferable, strict: true ) );
-		}
-	}
-
-	#[Test]
 	#[DataProvider( 'provideBoolValueAndType' )]
 	public function itConvertsToBooleanStringIfEitherValueOrTypeIsValidElseNull(
 		mixed $value,
@@ -106,7 +53,7 @@ class TypeTest extends TestCase {
 	}
 
 	#[Test]
-	#[DataProvider( 'provideMaybeBooleanType' )]
+	#[DataProvider( 'provideImplicitTypeCastToBool' )]
 	public function itConvertsImplicitBooleanElseReturnsWhateverValueGiven(
 		string $value,
 		string $type,
@@ -115,7 +62,7 @@ class TypeTest extends TestCase {
 		$this->assertSame( $expected, actual: Type::castImplicitBool( $value, $type ) );
 	}
 
-	public static function provideMaybeBooleanType(): array {
+	public static function provideImplicitTypeCastToBool(): array {
 		return array(
 			array( 'returns-original-value', 'if-type-is-not-a-boolean-type', 'returns-original-value' ),
 			array( 'empty-type-is-always-null', '', 'empty-type-is-always-null' ),
@@ -151,6 +98,7 @@ class TypeTest extends TestCase {
 	public static function providePossibleBoolValues(): array {
 		return array(
 			array( 'true', 'true' ),
+			array( '1', 'false' ), // Everything is false except "true" literal string.
 			array( 'false', 'false' ),
 			array( 'truthy', 'false' ),
 			array( 123, 'false' ),
@@ -186,7 +134,7 @@ class TypeTest extends TestCase {
 			array( 99, 'string', '99' ),
 			array( 99.00, 'string', '99' ),
 			array( 123, 'float', 123.00 ),
-			array( 'some', 'false', true ),
+			array( 'some', 'false', false ),
 			array( 'some', 'true', true ),
 			array( 'some', 'bool', true ),
 			array( 'anything', 'null', null ),
