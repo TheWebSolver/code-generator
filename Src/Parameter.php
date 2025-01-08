@@ -4,11 +4,11 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Generator;
 
 use Nette\Utils\Type;
-use RuntimeException;
 use InvalidArgumentException;
 use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PromotedParameter;
+use TheWebSolver\Codegarage\Generator\Enum\Argument;
 use TheWebSolver\Codegarage\Generator\Error\ParamExtractionException as ExtractionError;
 
 /**
@@ -24,31 +24,6 @@ use TheWebSolver\Codegarage\Generator\Error\ParamExtractionException as Extracti
  * }
  */
 final class Parameter {
-	public const REFERENCE = 'isReference';
-	public const NULLABLE  = 'isNullable';
-	public const VARIADIC  = 'isVariadic';
-	public const PROMOTED  = 'isPromoted';
-	public const POSITION  = 'position';
-	public const DEFAULT   = 'defaultValue';
-	public const TYPE      = 'type';
-	public const NAME      = 'name';
-
-	/**
-	 * List of constructor arguments with their respective type.
-	 *
-	 * @var array<string,string>
-	 */
-	public const CREATION_ARGS = array(
-		self::REFERENCE  => 'bool',
-		self::NULLABLE   => 'bool',
-		self::VARIADIC   => 'bool',
-		self::PROMOTED   => 'bool',
-		self::POSITION   => 'int',
-		self::DEFAULT    => 'mixed',
-		self::TYPE       => '?string',
-		self::NAME       => 'string',
-	);
-
 	private bool $isDefaultValueAvailable = false;
 	private bool $isDefaultValueConstant  = false;
 	private ?string $invalidValueKey      = null;
@@ -153,7 +128,7 @@ final class Parameter {
 			}
 
 			[ $name, $value ] = $pair;
-			$args[ $name ]    = ! isset( self::CREATION_ARGS[ $name ] )
+			$args[ $name ]    = ! Argument::tryFrom( $name )
 				? self::throwExtractionError( ExtractionError::INVALID_CREATION_ARG )
 				: $value;
 		}
@@ -162,7 +137,9 @@ final class Parameter {
 			self::throwExtractionError( ExtractionError::FROM_VALIDATOR );
 		}
 
-		return isset( $args[ self::NAME ] ) ? $args : self::throwExtractionError( ExtractionError::NO_NAME_ARG );
+		return ! isset( $args[ Argument::Name->value ] )
+		? self::throwExtractionError( ExtractionError::NO_NAME_ARG )
+		: $args;
 	}
 
 	/**
@@ -180,34 +157,33 @@ final class Parameter {
 			);
 	}
 
-	public static function validateCreationArg( string $name ): void {
-		if ( ! array_key_exists( $name, self::CREATION_ARGS ) ) {
-			throw new RuntimeException(
-				sprintf(
-					'The parameter data must be for one of the creation args: %1$s. "%2$s" given',
-					implode( ' | ', array_keys( self::CREATION_ARGS ) ),
-					$name
-				)
-			);
-		}
-	}
-
 	/** @param array{position?:int,defaultValue?:mixed} $newValues */
 	public function recreateWith( array $newValues ): self {
 		return self::createFrom( array( ...$this->toArray(), ...$newValues ) );
 	}
 
-	/** @return ArgsAsArray */
+	/**
+	 * @return array{
+	 *  name:string,
+	 *  position:int,
+	 *  type:?string,
+	 *  defaultValue:mixed,
+	 *  isReference:bool,
+	 *  isVariadic:bool,
+	 *  isNullable:bool,
+	 *  isPromoted:bool
+	 * }
+	 */
 	public function toArray(): array {
 		return $this->asArray ??= array(
-			self::REFERENCE => $this->isPassedByReference(),
-			self::NULLABLE  => $this->allowsNull(),
-			self::VARIADIC  => $this->isVariadic(),
-			self::PROMOTED  => $this->isPromoted(),
-			self::POSITION  => $this->getPosition(),
-			self::DEFAULT   => $this->getRawDefaultValue(),
-			self::TYPE      => $this->getRawType(),
-			self::NAME      => $this->getName(),
+			Argument::Reference->value => $this->isPassedByReference(),
+			Argument::Nullable->value  => $this->allowsNull(),
+			Argument::Variadic->value  => $this->isVariadic(),
+			Argument::Promoted->value  => $this->isPromoted(),
+			Argument::Position->value  => $this->getPosition(),
+			Argument::Default->value   => $this->getRawDefaultValue(),
+			Argument::Type->value      => $this->getRawType(),
+			Argument::Name->value      => $this->getName(),
 		);
 	}
 
