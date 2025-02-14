@@ -1,209 +1,227 @@
 <?xml version="1.0"?>
 <ruleset name="TheWebSolver Codegarage Coding Standards">
-    <!-- See https://github.com/squizlabs/PHP_CodeSniffer/wiki/Annotated-ruleset.xml -->
-    <!-- See https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards -->
-    <!-- See https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards/wiki -->
-    <!-- See https://github.com/wimg/PHPCompatibility -->
-    <!-- See https://tommcfarlin.com/php-codesniffer/ -->
-    <!-- See https://tommcfarlin.com/php-codesniffer-in-visual-studio-code/ -->
+	<!-- See https://github.com/squizlabs/PHP_CodeSniffer/wiki/Annotated-ruleset.xml -->
+	<!-- See https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards -->
+	<!-- See https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards/wiki -->
+	<!-- See https://github.com/wimg/PHPCompatibility -->
+	<!-- See https://tommcfarlin.com/php-codesniffer/ -->
+	<!-- See https://tommcfarlin.com/php-codesniffer-in-visual-studio-code/ -->
 
-    <description>A custom set of code standard rules to check.</description>
+	<description>A custom set of code standard rules to check.</description>
 
-    <config name="testVersion" value="8.2"/>
+	<config name="testVersion" value="8.2"/>
 
-    <!-- Pass some flags as PHPCS CLI arguments:
-        p flag: Show progress of the run.
-        s flag: Show sniff codes in all reports.
-        v flag: Print verbose output.
-        n flag: Do not print warnings.
+	<!--
+	Pass some flags as PHPCS CLI arguments:
+		p: Show progress of the run.
+		s: Show sniff codes in all reports.
+		v: Print verbose output.
+		n: Do not print warnings.
+	-->
+	<arg value="psv"/>
+
+	<!-- Check up to 8 files simultaneously. -->
+	<arg name="parallel" value="8"/>
+	<arg name="colors"/>
+
+	<!-- Only check the PHP, CSS and SCSS files. JS files must be checked separately with ESLint. -->
+	<arg name="extensions" value="php,css,scss/css"/>
+
+	<!-- Check all files in this directory and the directories below it. -->
+	<file>.</file>
+	<!-- Exclude node modules -->
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<!-- Exclude vendors except first-party libraries. -->
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<!-- Ignore PHP files on asset directory. -->
+	<exclude-pattern>*/assets/css*.php</exclude-pattern>
+	<exclude-pattern>*/assets/js*.php</exclude-pattern>
+
+	<!--
+	#############################################################################
+	SNIFF RULE PACKAGES USED:
+	#############################################################################
+	-->
+
+	<rule ref="WordPress"/>
+	<rule ref="WordPress-Core" />
+	<rule ref="WordPress-Docs" />
+	<rule ref="WordPress-Extra" />
+	<rule ref="PHPCompatibility" />
+
+	<!--
+	#############################################################################
+	UNIVERSAL SNIFF RULE CONFIGURATIONS:
+	#############################################################################
+	-->
+
+	<rule ref="Universal.Operators.DisallowShortTernary">
+		<!-- Allow short ternary operator. Eg: $x ?: $y -->
+		<exclude name="Universal.Operators.DisallowShortTernary.Found" />
+	</rule>
+
+	<!-- Allow setting param names: "$for", "$object", etc. -->
+	<rule ref="Universal.NamingConventions.NoReservedKeywordParameterNames">
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.fnFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.forFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.arrayFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.classFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.objectFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.abstractFound"/>
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.namespaceFound"/>
+	</rule>
+
+	<!-- Allow using double negation "!!". -->
+	<rule ref="Universal.CodeAnalysis">
+		<exclude name="Universal.CodeAnalysis.NoDoubleNegative.FoundDouble"/>
+	</rule>
+
+	<!--
+	#############################################################################
+	GENERIC SNIFF RULE CONFIGURATIONS:
+	#############################################################################
+	-->
+
+	<rule ref="Generic.CodeAnalysis">
+		<!-- Allow variable assignment in the condition. Eg: if( $x = file_exists( $y ) ) { require $x; } -->
+		<exclude name="Generic.CodeAnalysis.AssignmentInCondition.Found" />
+		<!-- Allow variable assignment in the ternary operator. Eg: true === ( $z = file_exists( $y ) ) ? $z : $x; -->
+		<exclude name="Generic.CodeAnalysis.AssignmentInCondition.FoundInTernaryCondition" />
+		<exclude name="Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition" />
+	</rule>
+
+	<rule ref="Generic.Commenting.DocComment">
+		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
+	</rule>
+
+	<rule ref="Generic.CodeAnalysis.UnusedFunctionParameter">
+		<exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed"/>
+	</rule>
+
+	<!--
+	#############################################################################
+	SQUIZ SNIFF RULE CONFIGURATIONS:
+
+	https://github.com/squizlabs/PHP_CodeSniffer/wiki/Annotated-Ruleset
+	#############################################################################
+	-->
+
+	<rule ref="Squiz.PHP.DisallowMultipleAssignments">
+		<!-- Allow assignment in the control structure. Eg: if( $x = adding( $y + $z ) > 0 ) { return $x; } -->
+		<exclude name="Squiz.PHP.DisallowMultipleAssignments.FoundInControlStructure" />
+		<!-- Allow multiple assignment in the same line. Eg: $x = $y = 'value' -->
+		<exclude name="Squiz.PHP.DisallowMultipleAssignments.Found" />
+	</rule>
+
+	<rule ref="Squiz.Commenting">
+		<exclude name="Squiz.Commenting.FileComment.Missing"/>
+		<exclude name="Squiz.Commenting.FunctionComment.Missing"/>
+		<exclude name="Squiz.Commenting.ClassComment.Missing"/>
+		<exclude name="Squiz.Commenting.VariableComment.Missing"/>
+		<exclude name="Squiz.Commenting.FunctionComment.ParamCommentFullStop"/>
+		<exclude name="Squiz.Commenting.FunctionComment.MissingParamComment"/>
+		<exclude name="Squiz.Commenting.VariableComment.MissingVar"/>
+		<!-- Allow comments on same line as code. -->
+		<exclude name="Squiz.Commenting.PostStatementComment.Found"/>
+		<!-- Allow annotations (such as silencing PHPStan error that starts with "@") on same line as code. -->
+		<exclude name="Squiz.Commenting.PostStatementComment.AnnotationFound"/>
+		<exclude name="Squiz.Commenting.FunctionComment.ParamNameNoMatch"/>
+		<!-- Do not sniff comments about @param & @throws in docComment. -->
+		<exclude name="Squiz.Commenting.FunctionComment.MissingParamTag"/>
+		<exclude name="Squiz.Commenting.FunctionComment.MissingParamName"/>
+		<exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
+		<exclude name="Squiz.Commenting.FunctionCommentThrowTag.WrongNumber"/>
+	</rule>
+
+	<rule ref="Squiz.PHP.CommentedOutCode">
+		<properties>
+			<property name="maxPercentage" value="90%"/>
+		</properties>
+	</rule>
+
+	<!--
+	#############################################################################
+	PSR SNIFF RULE CONFIGURATIONS:
+	#############################################################################
+	-->
+
+	<rule ref="PSR12.Traits.UseDeclaration">
+		<exclude name="PSR12.Traits.UseDeclaration.MultipleImport"/>
+	</rule>
+
+	<rule ref="PSR12.Files.FileHeader">
+		<!-- Allow class-based use imports after function-based use imports in the file header. -->
+		<exclude name="PSR12.Files.FileHeader.IncorrectOrder"/>
+		<!-- Do not force to group imports by class and function. -->
+		<exclude name="PSR12.Files.FileHeader.IncorrectGrouping"/>
+	</rule>
+
+	<!--
+	#############################################################################
+	WORDPRESS SPECIFIC SNIFF RULE CONFIGURATIONS:
+
+	https://github.com/WordPress/WordPress-Coding-Standards/wiki/Customizable-sniff-properties
+	#############################################################################
+	-->
+
+	<!--
+	Allow for named specific exceptions to the file name rules based
+	on the directory hierarchy and ensure PSR-4 autoloading compatibility.
+		- Remove strict class file name requirement.
+		- Remove no hyphenated lowercase requirement.
     -->
-    <arg value="psv"/>
+	<rule ref="WordPress.Files.FileName">
+		<properties>
+			<property name="strict_class_file_names" value="false" />
+		</properties>
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase" />
+	</rule>
 
-    <!-- Check up to 8 files simultaneously. -->
-    <arg name="parallel" value="8"/>
-    <arg name="colors"/>
+	<rule ref="WordPress.Arrays.MultipleStatementAlignment">
+		<properties>
+			<!-- No need to adjust alignment of large arrays when the item with the largest key is removed. -->
+			<property name="exact" value="false"/>
+			<!-- Don't align multi-line items if ALL items in the array are multi-line. -->
+			<property name="alignMultilineItems" value="!=100"/>
+			<!-- Array assignment operator should always be on the same line as the array key. -->
+			<property name="ignoreNewlines" value="false"/>
+		</properties>
+	</rule>
 
-    <!-- Only check the PHP, CSS and SCSS files. JS files must be checked separately with ESLint. -->
-    <arg name="extensions" value="php,css,scss/css"/>
+	<rule ref="WordPress.NamingConventions.ValidVariableName">
+		<!-- Assigning value to the non-snakeCased property. -->
+		<exclude name="WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase"/>
+		<exclude name="WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase"/>
+		<exclude name="WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase"/>
+		<exclude name="WordPress.NamingConventions.ValidVariableName.InterpolatedVariableNotSnakeCase"/>
+	</rule>
 
-    <!-- Check all files in this directory and the directories below it. -->
-    <file>.</file>
-    <!-- Exclude node modules -->
-    <exclude-pattern>*/node_modules/*</exclude-pattern>
-    <!-- Exclude vendors except first-party libraries. -->
-    <exclude-pattern>*/vendor(?!\/thewebsolver\/).*</exclude-pattern>
-    <!-- Ignore PHP files on asset directory. -->
-    <exclude-pattern>*/assets/css*.php</exclude-pattern>
-    <exclude-pattern>*/assets/js*.php</exclude-pattern>
+	<!-- Maintaining same format as enum's other default methods. -->
+	<rule ref="WordPress.NamingConventions.ValidFunctionName">
+		<exclude name="WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid"/>
+		<exclude name="WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid"/>
+	</rule>
 
-    <!--
-    #############################################################################
-    SNIFF RULE PACKAGES USED:
-    #############################################################################
-    -->
+	<rule ref="WordPress.Security">
+		<exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+		<exclude name="WordPress.Security.EscapeOutput.OutputNotEscaped"/>
+	</rule>
 
-    <rule ref="WordPress"/>
-    <rule ref="WordPress-Core" />
-    <rule ref="WordPress-Docs" />
-    <rule ref="WordPress-Extra" />
-    <rule ref="PHPCompatibility" />
+	<rule ref="WordPress.CodeAnalysis">
+		<exclude name="WordPress.CodeAnalysis.AssignmentInTernaryCondition.FoundInTernaryCondition"/>
+	</rule>
 
-    <!--
-    #############################################################################
-    UNIVERSAL SNIFF RULE CONFIGURATIONS:
-    #############################################################################
-    -->
+	<rule ref="WordPress.WP">
+		<exclude name="WordPress.WP.AlternativeFunctions"/>
+	</rule>
 
-    <rule ref="Universal.Operators.DisallowShortTernary">
-        <!-- Allow short ternary operator. Eg: $x ?: $y -->
-        <exclude name="Universal.Operators.DisallowShortTernary.Found" />
-    </rule>
-
-    <!-- Allow setting param names: "$for", "$object", etc. -->
-    <rule ref="Universal.NamingConventions.NoReservedKeywordParameterNames">
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.fnFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.forFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.arrayFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.classFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.objectFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound"/>
-        <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.abstractFound"/>
-    </rule>
-
-    <!--
-    #############################################################################
-    GENERIC SNIFF RULE CONFIGURATIONS:
-    #############################################################################
-    -->
-
-    <rule ref="Generic.CodeAnalysis">
-        <!-- Allow variable assignment in the condition. Eg: if( $x = file_exists( $y ) ) { require $x; } -->
-        <exclude name="Generic.CodeAnalysis.AssignmentInCondition.Found" />
-        <!-- Allow variable assignment in the ternary operator. Eg: true === ( $z = file_exists( $y ) ) ? $z : $x; -->
-        <exclude name="Generic.CodeAnalysis.AssignmentInCondition.FoundInTernaryCondition" />
-        <exclude name="Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition" />
-    </rule>
-
-    <rule ref="Generic.Commenting.DocComment">
-        <exclude name="Generic.Commenting.DocComment.MissingShort"/>
-    </rule>
-
-    <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter">
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed"/>
-    </rule>
-
-    <!--
-    #############################################################################
-    SQUIZ SNIFF RULE CONFIGURATIONS:
-
-    https://github.com/squizlabs/PHP_CodeSniffer/wiki/Annotated-Ruleset
-    #############################################################################
-    -->
-
-    <rule ref="Squiz.PHP.DisallowMultipleAssignments">
-        <!-- Allow assignment in the control structure. Eg: if( $x = adding( $y + $z ) > 0 ) { return $x; } -->
-        <exclude name="Squiz.PHP.DisallowMultipleAssignments.FoundInControlStructure" />
-        <!-- Allow multiple assignment in the same line. Eg: $x = $y = 'value' -->
-        <exclude name="Squiz.PHP.DisallowMultipleAssignments.Found" />
-    </rule>
-
-    <rule ref="Squiz.Commenting">
-        <exclude name="Squiz.Commenting.FileComment.Missing"/>
-        <exclude name="Squiz.Commenting.FunctionComment.Missing"/>
-        <exclude name="Squiz.Commenting.ClassComment.Missing"/>
-        <exclude name="Squiz.Commenting.VariableComment.Missing"/>
-        <exclude name="Squiz.Commenting.FunctionComment.ParamCommentFullStop"/>
-        <exclude name="Squiz.Commenting.FunctionComment.MissingParamComment"/>
-        <exclude name="Squiz.Commenting.VariableComment.MissingVar"/>
-        <!-- Comments can appear on same line as code. -->
-        <exclude name="Squiz.Commenting.PostStatementComment.Found"/>
-        <!-- Comments after param names in docComment. -->
-        <exclude name="Squiz.Commenting.FunctionComment.MissingParamTag"/>
-    </rule>
-
-    <rule ref="Squiz.PHP.CommentedOutCode">
-        <properties>
-            <property name="maxPercentage" value="90%"/>
-        </properties>
-    </rule>
-
-    <!--
-    #############################################################################
-    PSR SNIFF RULE CONFIGURATIONS:
-    #############################################################################
-    -->
-
-    <rule ref="PSR12.Traits.UseDeclaration">
-        <exclude name="PSR12.Traits.UseDeclaration.MultipleImport"/>
-    </rule>
-
-    <rule ref="PSR12.Files.FileHeader">
-        <!-- Allow class-based use imports after function-based use imports in the file header. -->
-        <exclude name="PSR12.Files.FileHeader.IncorrectOrder"/>
-        <!-- Do not force to group imports by class and function. -->
-        <exclude name="PSR12.Files.FileHeader.IncorrectGrouping"/>
-    </rule>
-
-    <!--
-    #############################################################################
-    WORDPRESS SPECIFIC SNIFF RULE CONFIGURATIONS:
-
-    https://github.com/WordPress/WordPress-Coding-Standards/wiki/Customizable-sniff-properties
-    #############################################################################
-    -->
-
-    <!--
-    Allow for named specific exceptions to the file name rules based
-        on the directory hierarchy and ensure PSR-4 autoloading compatibility.
-        - Remove strict class file name requirement.
-        - Remove no hyphenated lowercase requirement.
-    -->
-    <rule ref="WordPress.Files.FileName">
-        <properties>
-            <property name="strict_class_file_names" value="false" />
-        </properties>
-        <exclude name="WordPress.Files.FileName.NotHyphenatedLowercase" />
-    </rule>
-
-    <rule ref="WordPress.Arrays.MultipleStatementAlignment">
-        <properties>
-            <!-- No need to adjust alignment of large arrays when the item with the largest key is removed. -->
-            <property name="exact" value="false"/>
-            <!-- Don't align multi-line items if ALL items in the array are multi-line. -->
-            <property name="alignMultilineItems" value="!=100"/>
-            <!-- Array assignment operator should always be on the same line as the array key. -->
-            <property name="ignoreNewlines" value="false"/>
-        </properties>
-    </rule>
-
-    <rule ref="WordPress.NamingConventions.ValidVariableName">
-        <!-- Assigning value to the non-snakeCased property. -->
-        <exclude name="WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase"/>
-        <exclude name="WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase"/>
-        <exclude name="WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase"/>
-        <exclude name="WordPress.NamingConventions.ValidVariableName.InterpolatedVariableNotSnakeCase"/>
-    </rule>
-
-    <!-- Maintaining same format as enum's other default methods. -->
-    <rule ref="WordPress.NamingConventions.ValidFunctionName">
-        <exclude name="WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid"/>
-        <exclude name="WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid"/>
-    </rule>
-
-    <rule ref="WordPress.Security">
-        <exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
-    </rule>
-
-    <rule ref="WordPress.CodeAnalysis">
-        <exclude name="WordPress.CodeAnalysis.AssignmentInTernaryCondition.FoundInTernaryCondition"/>
-    </rule>
-
-    <!--
-    Allow using "$this" for enum methods. Temp fix until PHPCompatibilityWP
-    is updated to support PHPCompatibility v10.x.
-    -->
-    <rule ref="PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext">
-        <exclude name="PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext"/>
-    </rule>
+	<!--
+		Allow using "$this" for enum methods. Temp fix until PHPCompatibilityWP
+		is updated to support PHPCompatibility v10.x.
+	-->
+	<rule ref="PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext">
+		<exclude name="PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext"/>
+	</rule>
 </ruleset>
