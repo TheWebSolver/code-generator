@@ -13,3 +13,13 @@ parameters:
 				- '#^Parameter \#2 \$string of function explode expects string, mixed given\.$#'
 				- '#^Parameter \#1 \$value of class Nette\\PhpGenerator\\Literal constructor expects string, mixed given\.$#'
 			path: Src/Parameter.php
+		-
+			path: Src/ArrayPhpFile.php
+			message: '|Parameter \&\$array|'
+			identifier: paramOut.type
+			count: 2
+		-
+			path: Src/ArrayPhpFile.php
+			message: '#^Cannot access offset string on mixed.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
