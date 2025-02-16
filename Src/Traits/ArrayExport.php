@@ -98,7 +98,7 @@ trait ArrayExport {
 	protected function multipleArrayValuesInNewline( string $content, int $column, int $level ): bool {
 		return strpos( $content, needle: $this->whitespaceCharOf( self::CHARACTER_NEWLINE ) ) !== false
 			|| substr_count( $content, needle: '=>' ) > 1
-			|| ( $level * $this->lengthValueOf( self::LENGTH_INDENT ) + $column + strlen( $content ) + 9 /* array(  ) */ ) > $this->lengthValueOf( self::LENGTH_WRAP );
+			|| $this->reachedStringifiedArrayMaxWidth( $level, $column, $content );
 	}
 
 	/**
@@ -108,8 +108,7 @@ trait ArrayExport {
 	protected function exportArray( array &$content, int $level, int $column ): string {
 		if ( empty( $content ) ) {
 			return 'array()';
-
-		} elseif ( $level > $this->lengthValueOf( self::LENGTH_DEPTH ) || in_array( $content, $this->arrayParents, true ) ) {
+		} elseif ( $this->reachedArrayMaxDepth( $level, $content ) ) {
 			throw new LogicException( 'Nesting level too deep or recursive dependency.' );
 		}
 
@@ -131,5 +130,17 @@ trait ArrayExport {
 		$shouldWrap = $this->multipleArrayValuesInNewline( $singleline, $column, $level );
 
 		return $this->withArrayLanguageConstruct( $shouldWrap ? $multiline : $singleline );
+	}
+
+	private function reachedArrayMaxDepth( int $level, mixed $content ): bool {
+		return $level > $this->lengthValueOf( self::LENGTH_DEPTH )
+			|| in_array( $content, $this->arrayParents, true );
+	}
+
+	private function reachedStringifiedArrayMaxWidth( int $level, int $column, string $content ): bool {
+		$indentLength = $level * $this->lengthValueOf( self::LENGTH_INDENT );
+		$stringLength = $this->lengthValueOf( self::LENGTH_WRAP );
+
+		return ( $indentLength + $column + strlen( $content ) + /* array(  ) */ 9 ) > $stringLength;
 	}
 }
