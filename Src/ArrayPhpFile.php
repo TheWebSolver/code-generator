@@ -34,8 +34,6 @@ class ArrayPhpFile {
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
-			$key = $this->aliasIfIsClassname( $key );
-
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
 
@@ -60,18 +58,6 @@ class ArrayPhpFile {
 		$export  = $this->export( $content );
 
 		return "{$headers}\n" . Strings::normalize( "\n{$export};" );
-	}
-
-	private function aliasIfIsClassname( string $value ): string {
-		if ( ctype_digit( $value ) ) {
-			return $value;
-		}
-
-		[$fqcn, $alias] = NamespacedClass::resolveImportFrom( $value );
-
-		$alias && $this->phpFile->addUse( $fqcn, $alias );
-
-		return $fqcn !== $alias ? "{$alias}::class" : $value;
 	}
 
 	protected function export( mixed &$content, int $level = 0, int $column = 0 ): string {
@@ -121,10 +107,7 @@ class ArrayPhpFile {
 			default             => $value,
 		};
 
-		$classname = $this->aliasIfIsClassname( $fqcn );
-		$value     = array( $classname, $methodName );
-
-		return $this->addContent( $key, $value, index: $this->aliasIfIsClassname( (string) $key ) );
+		return $this->addContent( $key, array( $fqcn, $methodName ) );
 	}
 
 	/** @return mixed[] */

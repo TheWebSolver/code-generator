@@ -17,7 +17,7 @@ class ArrayPhpFileTest extends TestCase {
 		$file->addCallable( Argument::class, array( Argument::class, 'casesToString' ) );
 
 		$this->assertSame(
-			array( 'Argument::class' => array( 'Argument::class', 'casesToString' ) ),
+			array( Argument::class => array( Argument::class, 'casesToString' ) ),
 			$file->getContent()
 		);
 
@@ -25,29 +25,29 @@ class ArrayPhpFileTest extends TestCase {
 			->addCallable( 'callback', array( self::class, 'assertTrue' ) );
 
 		$this->assertSame(
-			array( 'callback' => array( 'ArrayPhpFileTest::class', 'assertTrue' ) ),
-			$file->getContent()['callables']['TestCase::class']
+			array( 'callback' => array( self::class, 'assertTrue' ) ),
+			$file->getContent()['callables'][ TestCase::class ]
 		);
 
 		$file->childOf( 'callables.' . TestCase::class )
 			->addCallable( Test::class, array( Test::class, 'attribute' ) );
 
 		$this->assertSame(
-			array( 'Test::class', 'attribute' ),
-			$file->getContent()['callables']['TestCase::class']['Test::class']
+			array( Test::class, 'attribute' ),
+			$file->getContent()['callables'][ TestCase::class ][ Test::class ]
 		);
 
 		$file->childOf( 'callables.' . TestCase::class )->addContent( 'simple', 'value' );
 
 		$this->assertSame(
 			'value',
-			$file->getContent()['callables']['TestCase::class']['simple']
+			$file->getContent()['callables'][ TestCase::class ]['simple']
 		);
 
-		$this->assertCount( 3, $file->getContent()['callables']['TestCase::class'] );
+		$this->assertCount( 3, $file->getContent()['callables'][ TestCase::class ] );
 		$this->assertSame(
-			array( 'callback', 'Test::class', 'simple' ),
-			array_keys( $file->getContent()['callables']['TestCase::class'] )
+			array( 'callback', Test::class, 'simple' ),
+			array_keys( $file->getContent()['callables'][ TestCase::class ] )
 		);
 
 		$file->childOf( 'firstDepth.secondDepth.thirdDepth' )->addContent( 'some', 'thing' );
