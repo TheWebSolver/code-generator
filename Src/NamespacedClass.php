@@ -21,6 +21,7 @@ class NamespacedClass {
 	/** @var string[] */
 	private array $implements = array();
 	private string $extends   = '';
+	private ClassType $class;
 
 	public function __construct( string $currentNamespace ) {
 		$this->namespace = new PhpNamespace( self::stripSlashesFrom( $currentNamespace ) );
@@ -99,29 +100,29 @@ class NamespacedClass {
 
 	/** @throws LogicException When this method is called before class is created. */
 	public function getClass(): ClassType {
-		static $class = null;
-
-		if ( is_null( $class ) ) {
-			$classes = array_filter(
-				$this->namespace->getClasses(),
-				fn( ClassType $class ): bool => $class->getType() === ClassType::TYPE_CLASS
-			);
-
-			$class = array_shift( $classes );
-
-			if ( ! $class instanceof ClassType ) {
-				throw new LogicException(
-					sprintf(
-						'"%s" method can only be called after class is created in the current namespace "%2$s". Use method "%3$s" to add class first.',
-						__METHOD__,
-						"\\{$this->namespace->getName()}",
-						self::class . '::createClass()'
-					)
-				);
-			}
+		if ( $class = ( $this->class ?? null ) ) {
+			return $class;
 		}
 
-		return $class;
+		$classes = array_filter(
+			$this->namespace->getClasses(),
+			fn( ClassType $class ): bool => $class->getType() === ClassType::TYPE_CLASS
+		);
+
+		$class = array_shift( $classes );
+
+		if ( ! $class instanceof ClassType ) {
+			throw new LogicException(
+				sprintf(
+					'"%s" method can only be called after class is created in the current namespace "%2$s". Use method "%3$s" to add class first.',
+					__METHOD__,
+					"\\{$this->namespace->getName()}",
+					self::class . '::createClass()'
+				)
+			);
+		}
+
+		return $this->class = $class;
 	}
 
 	/** @throws LogicException When this method is called before class is created. */
