@@ -3,26 +3,43 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generator;
 
+use Closure;
 use Nette\Utils\Strings;
 use Nette\PhpGenerator\Dumper;
+use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\Printer;
 use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
+use TheWebSolver\Codegarage\Generator\Traits\ImportResolver;
 
 class ArrayPhpFile {
-	use ArrayExport;
+	use ArrayExport, ImportResolver;
+
 
 	/** @var mixed[] */
 	private array $content;
 	private string|int $parentKey;
+
+	private static bool $subscribeImports = true;
 
 	public function __construct(
 		public readonly PhpFile $phpFile = new PhpFile(),
 		private Printer $printer = new Printer(),
 		private Dumper $dumper = new Dumper()
 	) {
-		$phpFile->setStrictTypes();
+		$phpFile->setStrictTypes()->addNamespace( $this->setNamespace()->getNamespace() );
+	}
+
+	public static function subscribeForImport( bool $addUseStatement = true ): Closure {
+		$previousSubscription   = self::$subscribeImports;
+		self::$subscribeImports = $addUseStatement;
+
+		return static fn() => self::$subscribeImports = $previousSubscription;
+	}
+
+	public static function isSubscribedForImport(): bool {
+		return self::$subscribeImports;
 	}
 
 	/**
@@ -34,6 +51,8 @@ class ArrayPhpFile {
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
+			$this->maybeAddUseOf( $key );
+
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
 
@@ -69,8 +88,8 @@ class ArrayPhpFile {
 	}
 
 	public function exportString( string $content ): string {
-		return str_ends_with( $content, needle: '::class' )
-			? (string) ( new Literal( $content ) )
+		return ( ( $alias = $this->resolveImports( $content ) ) !== $content )
+			? (string) new Literal( $alias )
 			: $this->dumper->dump( $content );
 	}
 
@@ -81,14 +100,14 @@ class ArrayPhpFile {
 		return $this;
 	}
 
-	public function addContent( string|int $key, mixed $value, string|int $index = null ): static {
+	public function addContent( string|int $key, mixed $value ): static {
 		$parentKey = ( $this->parentKey ?? null );
 		$array     = $this->content ?? array();
 
 		unset( $this->parentKey );
 
 		if ( ! $parentKey ) {
-			$this->content[ $index ?? $key ] = $value;
+			$this->content[ $key ] = $value;
 
 			return $this;
 		}
@@ -107,11 +126,31 @@ class ArrayPhpFile {
 			default             => $value,
 		};
 
+		$this->maybeAddUseOf( $fqcn );
+
 		return $this->addContent( $key, array( $fqcn, $methodName ) );
 	}
 
 	/** @return mixed[] */
 	public function getContent(): array {
 		return $this->content;
+	}
+
+	protected function getAliasOf( string $import ): string {
+		if ( ! in_array( $import, $uses = $this->getNamespace()->getUses(), strict: true ) ) {
+			return $import;
+		}
+
+		return ( $alias = array_search( $import, $uses, strict: true ) ) ? "{$alias}::class" : $import;
+	}
+
+	protected function resolveImports( string $content ): string {
+		return self::isSubscribedForImport() ? $this->getAliasOf( $content ) : $content;
+	}
+
+	private function maybeAddUseOf( string $key ): void {
+		self::isSubscribedForImport()
+			&& Helpers::isNamespaceIdentifier( $key )
+			&& $this->addUseStatementOf( $key );
 	}
 }

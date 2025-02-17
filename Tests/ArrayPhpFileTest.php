@@ -10,6 +10,29 @@ use TheWebSolver\Codegarage\Generator\Enum\Argument;
 
 class ArrayPhpFileTest extends TestCase {
 	#[Test]
+	public function itEnsuresImportSubscriptionWorks(): void {
+		$this->assertTrue( ArrayPhpFile::isSubscribedForImport() );
+
+		$unsubscribe = ArrayPhpFile::subscribeForImport();
+
+		$this->assertTrue( ArrayPhpFile::isSubscribedForImport() );
+		$unsubscribe();
+		$this->assertTrue(
+			ArrayPhpFile::isSubscribedForImport(),
+			'Default is set to true, so reset (unsubscribe) has no effect.'
+		);
+
+		$unsubscribe = ArrayPhpFile::subscribeForImport( false );
+
+		$this->assertFalse( ArrayPhpFile::isSubscribedForImport() );
+		$unsubscribe();
+		$this->assertTrue(
+			ArrayPhpFile::isSubscribedForImport(),
+			'Resets to previous state before subscription.'
+		);
+	}
+
+	#[Test]
 	public function classNameKeyAndCallableMethodAreImportedProperly(): void {
 		$this->assertTrue( true );
 		$file = new ArrayPhpFile();
