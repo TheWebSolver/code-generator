@@ -4,12 +4,13 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Generator;
 
 use Closure;
+use ReflectionFunction;
 use Nette\Utils\Strings;
 use Nette\PhpGenerator\Dumper;
 use Nette\PhpGenerator\Helpers;
-use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\Printer;
+use Nette\PhpGenerator\PhpNamespace;
 use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
 use TheWebSolver\Codegarage\Generator\Traits\ImportResolver;
 
@@ -88,9 +89,13 @@ class ArrayPhpFile {
 	}
 
 	public function exportString( string $content ): string {
-		return ( ( $alias = $this->resolveImports( $content ) ) !== $content )
-			? (string) new Literal( $alias )
-			: $this->dumper->dump( $content );
+		$alias = $this->resolveImports( $content );
+
+		return match ( true ) {
+			$alias === $content            => $this->dumper->dump( $content ),
+			$this->isClassString( $alias ) => $alias,
+			default                        =>  "{$alias}(...)"
+		};
 	}
 
 	/** Sets previously added array key as parent for nested array key/value pair. */
@@ -107,6 +112,8 @@ class ArrayPhpFile {
 		unset( $this->parentKey );
 
 		if ( ! $parentKey ) {
+			is_string( $key ) && $this->maybeAddUseOf( $key );
+
 			$this->content[ $key ] = $value;
 
 			return $this;
@@ -119,16 +126,51 @@ class ArrayPhpFile {
 		return $this;
 	}
 
-	/** @param string|array{0:string,1:string} $value */
-	public function addCallable( string|int $key, string|array $value ): static {
-		[$fqcn, $methodName] = match ( true ) {
-			is_string( $value ) => explode( separator: '::', string: $value, limit: 2 ),
-			default             => $value,
+	/** @param string|array{0:string,1:string}|Closure $value Only static method's first-class callable is supported. */
+	public function addCallable( string|int $key, string|array|Closure $value ): static {
+		$value = match ( true ) {
+			is_string( $value )       => $this->resolveStringCallable( $value ),
+			$value instanceof Closure => $this->resolveFirstClassCallable( $value ),
+			default                   => $value,
 		};
+
+		return $this->addContent( $key, $value );
+	}
+
+	private function isClassString( string $content ): bool {
+		return str_contains( haystack: $content, needle: '::' );
+	}
+
+	/** @return string|string[] */
+	private function resolveStringCallable( string $value ): string|array {
+		if ( ! $this->isClassString( $value ) ) {
+			return $value;
+		}
+
+		[$fqcn, $methodName] = explode( separator: '::', string: $value, limit: 2 );
 
 		$this->maybeAddUseOf( $fqcn );
 
-		return $this->addContent( $key, array( $fqcn, $methodName ) );
+		return array( $fqcn, $methodName );
+	}
+
+	/** @return string|string[] */
+	private function resolveFirstClassCallable( Closure $value ): string|array {
+		$reflection       = new ReflectionFunction( $value );
+		$funcOrMethodName = $reflection->getShortName();
+		$lateBindingClass = $reflection->getClosureCalledClass();
+
+		if ( $lateBindingClass ) {
+			$this->maybeAddUseOf( $fqcn = $lateBindingClass->name );
+
+			return array( $fqcn, $funcOrMethodName );
+		}
+
+		if ( $reflection->getNamespaceName() ) {
+			$this->maybeAddUseOf( $funcOrMethodName = $reflection->name, type: PhpNamespace::NAME_FUNCTION );
+		}
+
+		return $funcOrMethodName;
 	}
 
 	/** @return mixed[] */
@@ -137,20 +179,30 @@ class ArrayPhpFile {
 	}
 
 	protected function getAliasOf( string $import ): string {
-		if ( ! in_array( $import, $uses = $this->getNamespace()->getUses(), strict: true ) ) {
-			return $import;
+
+		if ( in_array( $import, $classImports = $this->getNamespace()->getUses(), strict: true ) ) {
+			return ( $alias = array_search( $import, $classImports, strict: true ) )
+				? "{$alias}::class"
+				: $import;
 		}
 
-		return ( $alias = array_search( $import, $uses, strict: true ) ) ? "{$alias}::class" : $import;
+		$funcImports = $this->getNamespace()->getUses( PhpNamespace::NAME_FUNCTION );
+
+		if ( in_array( $import, $funcImports, strict: true ) ) {
+			return ( $alias = array_search( $import, $funcImports, strict: true ) ) ? (string) $alias : $import;
+		}
+
+		return $import;
 	}
 
 	protected function resolveImports( string $content ): string {
 		return self::isSubscribedForImport() ? $this->getAliasOf( $content ) : $content;
 	}
 
-	private function maybeAddUseOf( string $key ): void {
+	/** @param PhpNamespace::NAME* $type */
+	private function maybeAddUseOf( string $key, string $type = PhpNamespace::NAME_NORMAL ): void {
 		self::isSubscribedForImport()
 			&& Helpers::isNamespaceIdentifier( $key )
-			&& $this->addUseStatementOf( $key );
+			&& $this->addUseStatementOf( $key, $type );
 	}
 }

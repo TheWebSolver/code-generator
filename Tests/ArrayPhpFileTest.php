@@ -5,6 +5,7 @@ namespace TheWebSolver\Codegarage;
 
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\Depends;
 use TheWebSolver\Codegarage\Generator\ArrayPhpFile;
 use TheWebSolver\Codegarage\Generator\Enum\Argument;
 
@@ -33,8 +34,59 @@ class ArrayPhpFileTest extends TestCase {
 	}
 
 	#[Test]
+	public function itAddsCallableOfVariousTypes(): ArrayPhpFile {
+		$file = new ArrayPhpFile();
+
+		$file->addCallable( key: 'testFunc', value: 'assert' );
+
+		$this->assertSame( 'assert', $file->getContent()['testFunc'] );
+
+		$file->addCallable( key: 'testMethod', value: __METHOD__ );
+
+		$this->assertSame( array( self::class, __FUNCTION__ ), $file->getContent()['testMethod'] );
+
+		$file->addCallable( key: 'funcFirstClass', value: is_string( ... ) );
+
+		$this->assertSame( 'is_string', $file->getContent()['funcFirstClass'] );
+
+		$file->addCallable( key: 'methodFirstClass', value: TestCase::assertIsString( ... ) );
+
+		$this->assertSame( array( TestCase::class, 'assertIsString' ), $file->getContent()['methodFirstClass'] );
+
+		$file->addCallable( 'testNsFirstClass', value: testFirstClassCallable( ... ) );
+
+		$namespacedFunc = __NAMESPACE__ . '\\testFirstClassCallable';
+
+		$this->assertSame( $namespacedFunc, $file->getContent()['testNsFirstClass'] );
+
+		return $file;
+	}
+
+	#[Test]
+	#[Depends( 'itAddsCallableOfVariousTypes' )]
+	public function itEnsuresAddedCallablesAreFormattedForPrint( ArrayPhpFile $file ): void {
+		$print          = $file->print();
+		$namespacedFunc = __NAMESPACE__ . '\\testFirstClassCallable';
+
+		foreach ( array( TestCase::class, self::class ) as $import ) {
+			$this->assertStringContainsString( "use {$import}", $print );
+		}
+
+		$this->assertStringContainsString( "use function {$namespacedFunc}", $print );
+
+		foreach ( array( "'testFunc' => 'assert'", "'funcFirstClass' => 'is_string'" ) as $printedFunc ) {
+			$this->assertStringContainsString( $printedFunc, $print );
+		}
+
+		$this->assertStringContainsString( "\t'testMethod' => array(\n", $print );
+		$this->assertStringContainsString( "\t\t0 => ArrayPhpFileTest::class,\n", $print );
+		$this->assertStringContainsString( "\t\t1 => 'itAddsCallableOfVariousTypes',\n", $print );
+
+		$this->assertStringContainsString( "\t'testNsFirstClass' => testFirstClassCallable(...),\n", $print );
+	}
+
+	#[Test]
 	public function classNameKeyAndCallableMethodAreImportedProperly(): void {
-		$this->assertTrue( true );
 		$file = new ArrayPhpFile();
 
 		$file->addCallable( Argument::class, array( Argument::class, 'casesToString' ) );
@@ -88,3 +140,5 @@ class ArrayPhpFileTest extends TestCase {
 		);
 	}
 }
+
+function testFirstClassCallable() {} // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed
