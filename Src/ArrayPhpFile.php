@@ -176,23 +176,23 @@ class ArrayPhpFile {
 	}
 
 	protected function getAliasOf( string $import ): string {
-		if ( in_array( $import, $classImports = $this->getNamespace()->getUses(), strict: true ) ) {
-			return ( $alias = array_search( $import, $classImports, strict: true ) )
-				? "{$alias}::class"
-				: $import;
-		}
-
-		$funcImports = $this->getNamespace()->getUses( of: PhpNamespace::NAME_FUNCTION );
-
-		if ( in_array( $import, $funcImports, strict: true ) ) {
-			return ( $alias = array_search( $import, $funcImports, strict: true ) ) ? (string) $alias : $import;
-		}
-
-		return $import;
+		return match ( true ) {
+			default => $import,
+			! is_null( $classAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_NORMAL ) )
+				=> $classAlias ? "{$classAlias}::class" : $import,
+			! is_null( $funcAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_FUNCTION ) )
+				=> $funcAlias ?: $import,
+		};
 	}
 
 	protected function resolveImports( string $content ): string {
 		return self::isSubscribedForImport() ? $this->getAliasOf( $content ) : $content;
+	}
+
+	private function getAliasBy( string $import, string $type ): string|false|null {
+		return in_array( $import, $imports = $this->getNamespace()->getUses( of: $type ), strict: true )
+			? ( ( $alias = array_search( $import, $imports, strict: true ) ) ? (string) $alias : false )
+			: null;
 	}
 
 	/** @param PhpNamespace::NAME* $type */
