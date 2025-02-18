@@ -17,9 +17,8 @@ use TheWebSolver\Codegarage\Generator\Traits\ImportResolver;
 class ArrayPhpFile {
 	use ArrayExport, ImportResolver;
 
-
 	/** @var mixed[] */
-	private array $content;
+	private array $content = array();
 	private string|int $parentKey;
 
 	private static bool $subscribeImports = true;
@@ -27,9 +26,10 @@ class ArrayPhpFile {
 	public function __construct(
 		public readonly PhpFile $phpFile = new PhpFile(),
 		private Printer $printer = new Printer(),
-		private Dumper $dumper = new Dumper()
+		private Dumper $dumper = new Dumper(),
+		PhpNamespace $namespace = null
 	) {
-		$phpFile->setStrictTypes()->addNamespace( $this->setNamespace()->getNamespace() );
+		$phpFile->setStrictTypes()->addNamespace( $this->setNamespace( $namespace )->getNamespace() );
 	}
 
 	public static function subscribeForImport( bool $addUseStatement = true ): Closure {
@@ -43,16 +43,65 @@ class ArrayPhpFile {
 		return self::$subscribeImports;
 	}
 
+	/** @return mixed[] */
+	public function getContent(): array {
+		return $this->content;
+	}
+
+	public function print(): string {
+		$content = $this->getContent();
+
+		return $this->printer->printFile( $this->phpFile )
+			. $this->whitespaceCharOf( self::CHARACTER_NEWLINE )
+			. Strings::normalize( $this->export( $content ) ) . ';';
+	}
+
+	/** Sets the parent key for creating multi-dimensional array. */
+	public function childOf( string|int $parentKey ): static {
+		$this->parentKey = $parentKey;
+
+		return $this;
+	}
+
+	public function addContent( string|int $key, mixed $value ): static {
+		$parentKey = ( $this->parentKey ?? null );
+
+		unset( $this->parentKey );
+
+		if ( ! $parentKey ) {
+			is_string( $key ) && $this->maybeImport( $key );
+
+			$this->content[ $key ] = $value;
+
+			return $this;
+		}
+
+		$this->set( $this->content, "{$parentKey}.{$key}", $value );
+
+		return $this;
+	}
+
+	/** @param string|array{0:string,1:string}|Closure $value Only static method's first-class callable is supported. */
+	public function addCallable( string|int $key, string|array|Closure $value ): static {
+		$callable = match ( true ) {
+			is_string( $value )       => $this->resolveStringCallable( $value ),
+			$value instanceof Closure => $this->resolveFirstClassCallable( $value ),
+			default                   => $value,
+		};
+
+		return $this->addContent( $key, $callable );
+	}
+
 	/**
 	 * @param array<array-key,mixed> $array
 	 * @param-out array<mixed,mixed> $array
 	 */
-	public function set( array &$array, string $key, mixed $value ): void {
+	protected function set( array &$array, string $key, mixed $value ): void {
 		$keys  = explode( '.', $key );
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
-			$this->maybeAddUseOf( $key );
+			$this->maybeImport( $key );
 
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
@@ -72,14 +121,6 @@ class ArrayPhpFile {
 		$array[ $index ] = $value;
 	}
 
-	public function print(): string {
-		$headers = $this->printer->printFile( $this->phpFile );
-		$content = $this->getContent();
-		$export  = $this->export( $content );
-
-		return "{$headers}\n" . Strings::normalize( "\n{$export};" );
-	}
-
 	protected function export( mixed &$content, int $level = 0, int $column = 0 ): string {
 		return match ( true ) {
 			is_array( $content )  => $this->exportArray( $content, $level, $column ),
@@ -88,53 +129,14 @@ class ArrayPhpFile {
 		};
 	}
 
-	public function exportString( string $content ): string {
+	protected function exportString( string $content ): string {
 		$alias = $this->resolveImports( $content );
 
 		return match ( true ) {
-			$alias === $content            => $this->dumper->dump( $content ),
+			$alias === $content            => $this->dumper->dump( $alias ),
 			$this->isClassString( $alias ) => $alias,
 			default                        =>  "{$alias}(...)"
 		};
-	}
-
-	/** Sets previously added array key as parent for nested array key/value pair. */
-	public function childOf( string|int $parentKey ): static {
-		$this->parentKey = $parentKey;
-
-		return $this;
-	}
-
-	public function addContent( string|int $key, mixed $value ): static {
-		$parentKey = ( $this->parentKey ?? null );
-		$array     = $this->content ?? array();
-
-		unset( $this->parentKey );
-
-		if ( ! $parentKey ) {
-			is_string( $key ) && $this->maybeAddUseOf( $key );
-
-			$this->content[ $key ] = $value;
-
-			return $this;
-		}
-
-		$this->set( $array, "{$parentKey}.{$key}", $value );
-
-		$this->content = $array;
-
-		return $this;
-	}
-
-	/** @param string|array{0:string,1:string}|Closure $value Only static method's first-class callable is supported. */
-	public function addCallable( string|int $key, string|array|Closure $value ): static {
-		$value = match ( true ) {
-			is_string( $value )       => $this->resolveStringCallable( $value ),
-			$value instanceof Closure => $this->resolveFirstClassCallable( $value ),
-			default                   => $value,
-		};
-
-		return $this->addContent( $key, $value );
 	}
 
 	private function isClassString( string $content ): bool {
@@ -149,7 +151,7 @@ class ArrayPhpFile {
 
 		[$fqcn, $methodName] = explode( separator: '::', string: $value, limit: 2 );
 
-		$this->maybeAddUseOf( $fqcn );
+		$this->maybeImport( $fqcn );
 
 		return array( $fqcn, $methodName );
 	}
@@ -161,32 +163,26 @@ class ArrayPhpFile {
 		$lateBindingClass = $reflection->getClosureCalledClass();
 
 		if ( $lateBindingClass ) {
-			$this->maybeAddUseOf( $fqcn = $lateBindingClass->name );
+			$this->maybeImport( $fqcn = $lateBindingClass->name );
 
 			return array( $fqcn, $funcOrMethodName );
 		}
 
 		if ( $reflection->getNamespaceName() ) {
-			$this->maybeAddUseOf( $funcOrMethodName = $reflection->name, type: PhpNamespace::NAME_FUNCTION );
+			$this->maybeImport( $funcOrMethodName = $reflection->name, type: PhpNamespace::NAME_FUNCTION );
 		}
 
 		return $funcOrMethodName;
 	}
 
-	/** @return mixed[] */
-	public function getContent(): array {
-		return $this->content;
-	}
-
 	protected function getAliasOf( string $import ): string {
-
 		if ( in_array( $import, $classImports = $this->getNamespace()->getUses(), strict: true ) ) {
 			return ( $alias = array_search( $import, $classImports, strict: true ) )
 				? "{$alias}::class"
 				: $import;
 		}
 
-		$funcImports = $this->getNamespace()->getUses( PhpNamespace::NAME_FUNCTION );
+		$funcImports = $this->getNamespace()->getUses( of: PhpNamespace::NAME_FUNCTION );
 
 		if ( in_array( $import, $funcImports, strict: true ) ) {
 			return ( $alias = array_search( $import, $funcImports, strict: true ) ) ? (string) $alias : $import;
@@ -200,9 +196,9 @@ class ArrayPhpFile {
 	}
 
 	/** @param PhpNamespace::NAME* $type */
-	private function maybeAddUseOf( string $key, string $type = PhpNamespace::NAME_NORMAL ): void {
+	private function maybeImport( string $key, string $type = null ): void {
 		self::isSubscribedForImport()
 			&& Helpers::isNamespaceIdentifier( $key )
-			&& $this->addUseStatementOf( $key, $type );
+			&& $this->addUseStatementOf( $key, $type ?? PhpNamespace::NAME_NORMAL );
 	}
 }
