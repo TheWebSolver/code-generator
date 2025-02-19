@@ -5,17 +5,24 @@ namespace TheWebSolver\Codegarage\Generator\Traits;
 
 use LogicException;
 
+/** Souped-up version of Nette Framework: `Dumper::dumpArray()` to make array export portable. */
 trait ArrayExport {
+	/** @var array{0:string,1:string} Language construct as either full **array()** or shorthand **[]**. */
 	public const ARRAY_LANGUAGE_CONSTRUCT = array( 'array(', ')' );
 
-	/** Length of ***array()*** --> **7** + **2** <-- space between opening & closing parenthesis. */
+	/** @var int Length of full ***array()*** --> **7** + **2** <-- space between opening & closing parenthesis. */
 	public const ARRAY_LANGUAGE_CONSTRUCT_LENGTH = 9;
-	public const ARRAY_INDENT_LENGTH             = 4;
-	public const ARRAY_DEPTH_LENGTH              = 50;
-	public const ARRAY_WRAP_LENGTH               = 120;
+	/** @var int The indentation size for the indentation style. */
+	public const ARRAY_INDENT_LENGTH = 4;
+	/** @var int The maximum depth a multi-dimensional array can be. */
+	public const ARRAY_DEPTH_LENGTH = 50;
+	/** @var int The maximum stringified length of an array after which it should be wrapped to a newline. */
+	public const ARRAY_WRAP_LENGTH = 120;
 
+	/** @var string The indentation style character as either **tab** or **space**. */
 	public const CHARACTER_INDENT_STYLE = "\t";
-	public const CHARACTER_NEWLINE      = "\n";
+	/** @var string The newline character. */
+	public const CHARACTER_NEWLINE = "\n";
 
 	private const DEFAULT_ARRAY_INFO = array(
 		'level'   => 0,
