@@ -78,10 +78,10 @@ class ArrayPhpFileTest extends TestCase {
 			$this->assertStringContainsString( $printedFunc, $print );
 		}
 
-		$this->assertStringContainsString( "\t'testMethod' => array(\n", $print );
-		$this->assertStringContainsString( "\t\t0 => ArrayPhpFileTest::class,\n", $print );
-		$this->assertStringContainsString( "\t\t1 => 'itAddsCallableOfVariousTypes',\n", $print );
-
+		$this->assertStringContainsString(
+			"\t'testMethod' => array( ArrayPhpFileTest::class, 'itAddsCallableOfVariousTypes' ),\n",
+			$print
+		);
 		$this->assertStringContainsString( "\t'testNsFirstClass' => testFirstClassCallable(...),\n", $print );
 	}
 
@@ -138,6 +138,19 @@ class ArrayPhpFileTest extends TestCase {
 			array( 'thirdDepth', 'atSecond' ),
 			array_keys( $file->getContent()['firstDepth']['secondDepth'] )
 		);
+
+		$print = $file->print();
+
+		$this->assertStringContainsString( "\t'callables' => array(\n", $print );
+		$this->assertStringContainsString( "\t\tTestCase::class => array(\n", $print );
+		$this->assertStringContainsString( "\t\t\t'callback' => array( ArrayPhpFileTest::class, 'assertTrue' ),\n", $print );
+		$this->assertStringContainsString( ",\n\t\t\tTest::class => array( Test::class, 'attribute' ),\n", $print );
+
+		$this->assertStringContainsString( "\t'firstDepth' => array(\n", $print );
+		$this->assertStringContainsString( "\t\t'secondDepth' => array(\n", $print );
+		$this->assertStringContainsString( "\n\t\t\t'thirdDepth' => array( 'some' => 'thing' ),\n", $print );
+
+		$this->assertSame( $print, $file->print(), 'Each print must flush its own artefact.' );
 	}
 }
 

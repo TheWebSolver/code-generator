@@ -48,12 +48,25 @@ class ArrayPhpFile {
 		return $this->content;
 	}
 
+	public function getAliasOf( string $import ): string {
+		return match ( true ) {
+			default => $import,
+			! is_null( $classAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_NORMAL ) )
+				=> $classAlias ? "{$classAlias}::class" : $import,
+			! is_null( $funcAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_FUNCTION ) )
+				=> $funcAlias ?: $import,
+		};
+	}
+
 	public function print(): string {
 		$content = $this->getContent();
-
-		return $this->printer->printFile( $this->phpFile )
-			. $this->whitespaceCharOf( self::CHARACTER_NEWLINE )
+		$print   = $this->printer->printFile( $this->phpFile )
+			. static::CHARACTER_NEWLINE
 			. Strings::normalize( $this->export( $content ) ) . ';';
+
+		$this->flushArrayExport();
+
+		return $print;
 	}
 
 	/** Sets the parent key for creating multi-dimensional array. */
@@ -64,19 +77,7 @@ class ArrayPhpFile {
 	}
 
 	public function addContent( string|int $key, mixed $value ): static {
-		$parentKey = ( $this->parentKey ?? null );
-
-		unset( $this->parentKey );
-
-		if ( ! $parentKey ) {
-			is_string( $key ) && $this->maybeImport( $key );
-
-			$this->content[ $key ] = $value;
-
-			return $this;
-		}
-
-		$this->set( $this->content, "{$parentKey}.{$key}", $value );
+		$this->set( $this->content, $this->maybeWithParent( $key ), $value );
 
 		return $this;
 	}
@@ -84,9 +85,9 @@ class ArrayPhpFile {
 	/** @param string|array{0:string,1:string}|Closure $value Only static method's first-class callable is supported. */
 	public function addCallable( string|int $key, string|array|Closure $value ): static {
 		$callable = match ( true ) {
-			is_string( $value )       => $this->resolveStringCallable( $value ),
-			$value instanceof Closure => $this->resolveFirstClassCallable( $value ),
-			default                   => $value,
+			is_string( $value )       => $this->normalizeStringCallable( $value ),
+			$value instanceof Closure => $this->normalizeFirstClassCallable( $value ),
+			default                   => $this->normalizeArrayCallable( $value ),
 		};
 
 		return $this->addContent( $key, $callable );
@@ -121,22 +122,35 @@ class ArrayPhpFile {
 		$array[ $index ] = $value;
 	}
 
-	protected function export( mixed &$content, int $level = 0, int $column = 0 ): string {
+	protected function export( mixed &$content ): string {
 		return match ( true ) {
-			is_array( $content )  => $this->exportArray( $content, $level, $column ),
+			is_array( $content )  => $this->exportArray( $content ),
 			is_string( $content ) => $this->exportString( $content ),
-			default               => $this->dumper->dump( $content )
+			default               => $this->exportMixed( $content )
 		};
 	}
 
+	final protected function exportMixed( mixed $content ): string {
+		return $this->dumper->dump( $content );
+	}
+
 	protected function exportString( string $content ): string {
-		$alias = $this->resolveImports( $content );
+		$alias = self::isSubscribedForImport() ? $this->getAliasOf( $content ) : $content;
 
 		return match ( true ) {
-			$alias === $content            => $this->dumper->dump( $alias ),
+			$alias === $content            => $this->exportMixed( $alias ),
 			$this->isClassString( $alias ) => $alias,
 			default                        =>  "{$alias}(...)"
 		};
+	}
+
+	private function maybeWithParent( string|int $key ): string {
+		$parentKey         = ( $this->parentKey ?? null );
+		$parentKey && $key = "{$parentKey}.{$key}";
+
+		unset( $this->parentKey );
+
+		return (string) $key;
 	}
 
 	private function isClassString( string $content ): bool {
@@ -144,20 +158,20 @@ class ArrayPhpFile {
 	}
 
 	/** @return string|string[] */
-	private function resolveStringCallable( string $value ): string|array {
+	private function normalizeStringCallable( string $value ): string|array {
 		if ( ! $this->isClassString( $value ) ) {
 			return $value;
 		}
 
-		[$fqcn, $methodName] = explode( separator: '::', string: $value, limit: 2 );
+		[$fqcn] = $callable = explode( separator: '::', string: $value, limit: 2 );
 
 		$this->maybeImport( $fqcn );
 
-		return array( $fqcn, $methodName );
+		return $callable;
 	}
 
 	/** @return string|string[] */
-	private function resolveFirstClassCallable( Closure $value ): string|array {
+	private function normalizeFirstClassCallable( Closure $value ): string|array {
 		$reflection       = new ReflectionFunction( $value );
 		$funcOrMethodName = $reflection->getShortName();
 		$lateBindingClass = $reflection->getClosureCalledClass();
@@ -175,18 +189,14 @@ class ArrayPhpFile {
 		return $funcOrMethodName;
 	}
 
-	protected function getAliasOf( string $import ): string {
-		return match ( true ) {
-			default => $import,
-			! is_null( $classAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_NORMAL ) )
-				=> $classAlias ? "{$classAlias}::class" : $import,
-			! is_null( $funcAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_FUNCTION ) )
-				=> $funcAlias ?: $import,
-		};
-	}
+	/**
+	 * @param array{0:string,1:string} $value
+	 * @return array{0:string,1:string}
+	 */
+	private function normalizeArrayCallable( array $value ): array {
+		$this->maybeImport( key: $value[0], type: PhpNamespace::NAME_NORMAL );
 
-	protected function resolveImports( string $content ): string {
-		return self::isSubscribedForImport() ? $this->getAliasOf( $content ) : $content;
+		return $value;
 	}
 
 	private function getAliasBy( string $import, string $type ): string|false|null {

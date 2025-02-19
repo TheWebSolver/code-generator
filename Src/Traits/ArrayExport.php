@@ -6,141 +6,174 @@ namespace TheWebSolver\Codegarage\Generator\Traits;
 use LogicException;
 
 trait ArrayExport {
-	final public const ARRAY_CONSTRUCT = array( 'array(', ')' );
+	public const ARRAY_LANGUAGE_CONSTRUCT = array( 'array(', ')' );
 
-	final public const CHARACTER_INDENT_STYLE = 'tabOrSpace';
-	final public const CHARACTER_NEWLINE      = 'newline';
+	/** Length of ***array()*** --> **7** + **2** <-- space between opening & closing parenthesis. */
+	public const ARRAY_LANGUAGE_CONSTRUCT_LENGTH = 9;
+	public const ARRAY_INDENT_LENGTH             = 4;
+	public const ARRAY_DEPTH_LENGTH              = 50;
+	public const ARRAY_WRAP_LENGTH               = 120;
 
-	final public const LENGTH_INDENT = 'length';
-	final public const LENGTH_DEPTH  = 'depth';
-	final public const LENGTH_WRAP   = 'wrap';
+	public const CHARACTER_INDENT_STYLE = "\t";
+	public const CHARACTER_NEWLINE      = "\n";
 
-	/** @var mixed[] */
-	private array $arrayParents = array();
-	private int $currentCount   = 0;
+	private const DEFAULT_ARRAY_INFO = array(
+		'level'   => 0,
+		'column'  => 0,
+		'count'   => 0,
+		'parents' => array(),
+	);
 
-	abstract protected function export( mixed &$content, int $level = 0, int $column = 0 ): string;
+	/** @var array{level:int,column:int,count:int,parents:array<mixed[]>} */
+	private array $currentArrayInfo = self::DEFAULT_ARRAY_INFO;
 
-	/** @param self::LENGTH* $type */
-	protected function lengthValueOf( string $type ): int {
-		return match ( $type ) {
-			self::LENGTH_INDENT => 4,
-			self::LENGTH_WRAP   => 120,
-			self::LENGTH_DEPTH  => 50
-		};
-	}
+	/** Allows exporting content other than ***array*** type. */
+	abstract protected function export( mixed &$content ): string;
 
-	/** @param self::CHARACTER* $type */
-	private function whitespaceCharOf( string $type ): string {
-		return match ( $type ) {
-			self::CHARACTER_INDENT_STYLE => "\t",
-			self::CHARACTER_NEWLINE      => "\n"
-		};
-	}
-
-	/** @return array{0:string,1:string} */
-	protected function arrayConstruct(): array {
-		return self::ARRAY_CONSTRUCT;
-	}
-
-	protected function arrayIndentForCurrenLevel( int $level ): string {
-		return str_repeat( $this->whitespaceCharOf( self::CHARACTER_INDENT_STYLE ), times: $level );
-	}
-
-	/** @param mixed[] $content */
-	protected function toStringifiedArrayKey( array $content, string|int $index ): string {
-		$currentIndex = array_is_list( $content ) && $index === $this->currentCount
-			? ''
-			: "{$this->export( $index )} => ";
-
-		return $currentIndex;
+	/**
+	 * Flushes the artefact that was created during the export process.
+	 * It must be called after exhibit finishes the export process.
+	 *
+	 * @example Usage
+	 * ```php
+	 * class ContentExporter {
+	 *  use ArrayExport;
+	 *
+	 *   protected function export(mixed &$content): string {
+	 *    if (is_array($content)) {
+	 *     return $this->exportArray($content);
+	 *    }
+	 *    // Export other $content type.
+	 *   }
+	 *
+	 *  public function exportContent(mixed $content): string {
+	 *   $string = $this->export($content);
+	 *   $this->flushArrayExport();
+	 *   return $string;
+	 *  }
+	 * }
+	 *
+	 * $stringifiedContent = (new ContentExporter)->exportContent($contentToBeStringified);
+	 * ```
+	 */
+	final protected function flushArrayExport(): void {
+		$this->currentArrayInfo = self::DEFAULT_ARRAY_INFO;
 	}
 
 	protected function withArrayLanguageConstruct( string $content ): string {
-		[$arrayOpen, $arrayClose] = $this->arrayConstruct();
+		[$arrayOpen, $arrayClose] = self::ARRAY_LANGUAGE_CONSTRUCT;
 
 		return "{$arrayOpen} {$content} {$arrayClose}";
 	}
 
-	protected function updateCurrentCount( string|int $arrayIndex ): self {
-		is_int( $arrayIndex ) && $this->currentCount = max( $arrayIndex + 1, $this->currentCount );
+	protected function toSinglelineArray( string &$current, string $key, mixed &$content ): self {
+		['level' => $prevLevel, 'column' => $prevColumn] = $this->currentArrayInfo;
 
-		return $this;
+		$column   = $prevColumn + strlen( $current );
+		$current .= ( '' === $current ? '' : ', ' ) . $key
+			. $this->withCurrentArrayInfo( level: 0, column: $column )->export( $content );
+
+		return $this->withCurrentArrayInfo( $prevLevel, $prevColumn );
 	}
 
-	private function toSingleLineArray(
-		string &$content,
-		string $key,
-		int $column,
-		mixed &$value
-	): self {
-		$content .= ( '' === $content ? '' : ', ' ) . $key;
-		$content .= $this->export( $value, level: 0, column: $column + strlen( $content ) );
+	protected function toMultilineArray( string &$current, string $key, mixed &$content, string $indent ): self {
+		['level' => $prevLevel, 'column' => $prevColumn] = $this->currentArrayInfo;
 
-		return $this;
-	}
+		$current .= self::CHARACTER_INDENT_STYLE . $key
+			. $this->withCurrentArrayInfo( level: $prevLevel + 1, column: strlen( $key ) )->export( $content )
+			. ',' . self::CHARACTER_NEWLINE . $indent;
 
-	protected function toMultilineArray(
-		string &$content,
-		string $key,
-		int $level,
-		mixed &$value,
-		string $indent
-	): self {
-		$content .= $this->whitespaceCharOf( self::CHARACTER_INDENT_STYLE )
-			. $key
-			. $this->export( $value, level: $level + 1, column: strlen( $key ) )
-			. ",{$this->whitespaceCharOf( self::CHARACTER_NEWLINE )}{$indent}";
-
-		return $this;
-	}
-
-	protected function multipleArrayValuesInNewline( string $content, int $column, int $level ): bool {
-		return strpos( $content, needle: $this->whitespaceCharOf( self::CHARACTER_NEWLINE ) ) !== false
-			|| substr_count( $content, needle: '=>' ) > 1
-			|| $this->reachedStringifiedArrayMaxWidth( $level, $column, $content );
+		return $this->withCurrentArrayInfo( $prevLevel, $prevColumn );
 	}
 
 	/**
 	 * @param mixed[] $content
 	 * @throws LogicException When max-depth reached.
 	 */
-	protected function exportArray( array &$content, int $level, int $column ): string {
+	protected function exportArray( array &$content ): string {
 		if ( empty( $content ) ) {
 			return 'array()';
-		} elseif ( $this->reachedArrayMaxDepth( $level, $content ) ) {
+		} elseif ( $this->reachedMaxDepthForCurrentArray( $content ) ) {
 			throw new LogicException( 'Nesting level too deep or recursive dependency.' );
 		}
 
-		$indent               = $this->arrayIndentForCurrenLevel( $level );
-		$singleline           = '';
-		$multiline            = "{$this->whitespaceCharOf( self::CHARACTER_NEWLINE )}{$indent}";
-		$this->arrayParents[] = $content;
+		[$indent, $singleline, $multiline] = $this->prepareArrayLinesAndIndentFrom( $content );
 
 		foreach ( $content as $index => &$value ) {
-			$key = $this->toStringifiedArrayKey( $content, $index );
+			$key = $this->getCurrentArrayKeyWithSeparatorBetween( $index, $content );
 
-			$this->updateCurrentCount( $index )
-				->toSingleLineArray( $singleline, $key, $column, $value )
-				->toMultilineArray( $multiline, $key, $level, $value, $indent );
+			$this->withUpdatedCountOfCurrentArrayIndex( $index )
+				->toSinglelineArray( $singleline, $key, $value )
+				->toMultilineArray( $multiline, $key, $value, $indent );
 		}
 
-		array_pop( $this->arrayParents );
+		array_pop( $this->currentArrayInfo['parents'] );
 
-		$shouldWrap = $this->multipleArrayValuesInNewline( $singleline, $column, $level );
-
-		return $this->withArrayLanguageConstruct( $shouldWrap ? $multiline : $singleline );
+		return $this->withArrayLanguageConstruct(
+			$this->shouldWrapEachArrayItemOnANewline( $singleline ) ? $multiline : $singleline
+		);
 	}
 
-	private function reachedArrayMaxDepth( int $level, mixed $content ): bool {
-		return $level > $this->lengthValueOf( self::LENGTH_DEPTH )
-			|| in_array( $content, $this->arrayParents, true );
+	/**
+	 * @param mixed[] $content
+	 * @return array{0:string,1:string,2:string}
+	 */
+	private function prepareArrayLinesAndIndentFrom( array $content ): array {
+		$this->currentArrayInfo['parents'][] = $content;
+
+		return array(
+			$indent     = $this->getCurrentLevelArrayIndent(),
+			$singleline = '',
+			$multiline  = self::CHARACTER_NEWLINE . $indent,
+		);
 	}
 
-	private function reachedStringifiedArrayMaxWidth( int $level, int $column, string $content ): bool {
-		$indentLength = $level * $this->lengthValueOf( self::LENGTH_INDENT );
-		$stringLength = $this->lengthValueOf( self::LENGTH_WRAP );
+	private function getCurrentLevelArrayIndent(): string {
+		return str_repeat( self::CHARACTER_INDENT_STYLE, times: $this->currentArrayInfo['level'] );
+	}
 
-		return ( $indentLength + $column + strlen( $content ) + /* array(  ) */ 9 ) > $stringLength;
+	/** @param mixed[] $value */
+	private function getCurrentArrayKeyWithSeparatorBetween( string|int $key, array $value ): string {
+		return $this->omitArraySeparatorBetween( $key, $value ) ? '' : $this->export( $key ) . ' => ';
+	}
+
+	private function withCurrentArrayInfo( int $level, int $column ): static {
+		$this->currentArrayInfo['level']  = $level;
+		$this->currentArrayInfo['column'] = $column;
+
+		return $this;
+	}
+
+	private function withUpdatedCountOfCurrentArrayIndex( string|int $key ): static {
+		$prevCount = $this->currentArrayInfo['count'];
+
+		is_int( $key ) && $this->currentArrayInfo['count'] = max( $key + 1, $prevCount );
+
+		return $this;
+	}
+
+	/** @param mixed[] $value */
+	private function omitArraySeparatorBetween( string|int $key, array $value ): bool {
+		return ( array_is_list( $value ) && $key === $this->currentArrayInfo['count'] ) || is_int( $key );
+	}
+
+	private function shouldWrapEachArrayItemOnANewline( string $content ): bool {
+		return str_contains( haystack: $content, needle: self::CHARACTER_NEWLINE )
+			|| substr_count( $content, needle: '=>' ) > 1
+			|| $this->reachedMaxWidthForCurrentArray( $content );
+	}
+
+	private function reachedMaxDepthForCurrentArray( mixed $content ): bool {
+		['level' => $level, 'parents' => $parents] = $this->currentArrayInfo;
+
+		return $level > self::ARRAY_DEPTH_LENGTH || in_array( $content, $parents, true );
+	}
+
+	private function reachedMaxWidthForCurrentArray( string $content ): bool {
+		['level' => $level, 'column' => $column] = $this->currentArrayInfo;
+
+		$indentLength = ( $level * self::ARRAY_INDENT_LENGTH ) + self::ARRAY_LANGUAGE_CONSTRUCT_LENGTH;
+
+		return ( $column + strlen( $content ) + $indentLength ) > self::ARRAY_WRAP_LENGTH;
 	}
 }
