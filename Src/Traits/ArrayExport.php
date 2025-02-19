@@ -68,7 +68,7 @@ trait ArrayExport {
 	}
 
 	protected function withArrayLanguageConstruct( string $content ): string {
-		[$arrayOpen, $arrayClose] = self::ARRAY_LANGUAGE_CONSTRUCT;
+		[$arrayOpen, $arrayClose] = static::ARRAY_LANGUAGE_CONSTRUCT;
 
 		return "{$arrayOpen} {$content} {$arrayClose}";
 	}
@@ -86,9 +86,9 @@ trait ArrayExport {
 	protected function toMultilineArray( string &$current, string $key, mixed &$content, string $indent ): self {
 		['level' => $prevLevel, 'column' => $prevColumn] = $this->currentArrayInfo;
 
-		$current .= self::CHARACTER_INDENT_STYLE . $key
+		$current .= static::CHARACTER_INDENT_STYLE . $key
 			. $this->withCurrentArrayInfo( level: $prevLevel + 1, column: strlen( $key ) )->export( $content )
-			. ',' . self::CHARACTER_NEWLINE . $indent;
+			. ',' . static::CHARACTER_NEWLINE . $indent;
 
 		return $this->withCurrentArrayInfo( $prevLevel, $prevColumn );
 	}
@@ -131,12 +131,12 @@ trait ArrayExport {
 		return array(
 			$indent     = $this->getCurrentLevelArrayIndent(),
 			$singleline = '',
-			$multiline  = self::CHARACTER_NEWLINE . $indent,
+			$multiline  = static::CHARACTER_NEWLINE . $indent,
 		);
 	}
 
 	private function getCurrentLevelArrayIndent(): string {
-		return str_repeat( self::CHARACTER_INDENT_STYLE, times: $this->currentArrayInfo['level'] );
+		return str_repeat( static::CHARACTER_INDENT_STYLE, times: $this->currentArrayInfo['level'] );
 	}
 
 	/** @param mixed[] $value */
@@ -165,7 +165,7 @@ trait ArrayExport {
 	}
 
 	private function shouldWrapEachArrayItemOnANewline( string $content ): bool {
-		return str_contains( haystack: $content, needle: self::CHARACTER_NEWLINE )
+		return str_contains( haystack: $content, needle: static::CHARACTER_NEWLINE )
 			|| substr_count( $content, needle: '=>' ) > 1
 			|| $this->reachedMaxWidthForCurrentArray( $content );
 	}
@@ -173,14 +173,14 @@ trait ArrayExport {
 	private function reachedMaxDepthForCurrentArray( mixed $content ): bool {
 		['level' => $level, 'parents' => $parents] = $this->currentArrayInfo;
 
-		return $level > self::ARRAY_DEPTH_LENGTH || in_array( $content, $parents, true );
+		return $level > static::ARRAY_DEPTH_LENGTH || in_array( $content, $parents, true );
 	}
 
 	private function reachedMaxWidthForCurrentArray( string $content ): bool {
 		['level' => $level, 'column' => $column] = $this->currentArrayInfo;
 
-		$indentLength = ( $level * self::ARRAY_INDENT_LENGTH ) + self::ARRAY_LANGUAGE_CONSTRUCT_LENGTH;
+		$indentLength = ( $level * static::ARRAY_INDENT_LENGTH ) + static::ARRAY_LANGUAGE_CONSTRUCT_LENGTH;
 
-		return ( $column + strlen( $content ) + $indentLength ) > self::ARRAY_WRAP_LENGTH;
+		return ( $column + strlen( $content ) + $indentLength ) > static::ARRAY_WRAP_LENGTH;
 	}
 }
