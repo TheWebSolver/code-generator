@@ -23,8 +23,3 @@ parameters:
 			message: '#^Cannot access offset string on mixed.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-		- # Returns string. PHPStan is confused with match expression.
-			path: Src/ArrayPhpFile.php
-			message: '|getAliasOf\(\) should return string but returns mixed|'
-			identifier: return.type
-			count: 1

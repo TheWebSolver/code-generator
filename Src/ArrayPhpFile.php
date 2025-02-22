@@ -11,11 +11,11 @@ use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\Printer;
 use Nette\PhpGenerator\PhpNamespace;
+use TheWebSolver\Codegarage\Generator\Helper\UseBuilder;
 use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
-use TheWebSolver\Codegarage\Generator\Traits\ImportResolver;
 
 class ArrayPhpFile {
-	use ArrayExport, ImportResolver;
+	use ArrayExport;
 
 	/** @var mixed[] */
 	private array $content = array();
@@ -27,9 +27,9 @@ class ArrayPhpFile {
 		public readonly PhpFile $phpFile = new PhpFile(),
 		private Printer $printer = new Printer(),
 		private Dumper $dumper = new Dumper(),
-		PhpNamespace $namespace = null
+		private PhpNamespace $namespace = new PhpNamespace( '' )
 	) {
-		$phpFile->setStrictTypes()->addNamespace( $this->setNamespace( $namespace )->getNamespace() );
+		$phpFile->setStrictTypes()->addNamespace( $namespace );
 	}
 
 	public static function subscribeForImport( bool $addUseStatement = true ): Closure {
@@ -43,19 +43,19 @@ class ArrayPhpFile {
 		return self::$subscribeImports;
 	}
 
+	public function using( string $item ): ?UseBuilder {
+		$shouldImport = self::isSubscribedForImport() && Helpers::isNamespaceIdentifier( $item );
+
+		return $shouldImport ? ( new UseBuilder( $item, $this->namespace ) ) : null;
+	}
+
 	/** @return mixed[] */
 	public function getContent(): array {
 		return $this->content;
 	}
 
-	public function getAliasOf( string $import ): string {
-		return match ( true ) {
-			default => $import,
-			! is_null( $classAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_NORMAL ) )
-				=> $classAlias ? "{$classAlias}::class" : $import,
-			! is_null( $funcAlias = $this->getAliasBy( $import, type: PhpNamespace::NAME_FUNCTION ) )
-				=> $funcAlias ?: $import,
-		};
+	public function getAliasOf( string $item ): string {
+		return $this->using( $item )?->getFormattedAlias() ?? $item;
 	}
 
 	public function print(): string {
@@ -102,7 +102,7 @@ class ArrayPhpFile {
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
-			$this->maybeImport( $key );
+			$this->using( $key )?->import();
 
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
@@ -165,25 +165,25 @@ class ArrayPhpFile {
 
 		[$fqcn] = $callable = explode( separator: '::', string: $value, limit: 2 );
 
-		$this->maybeImport( $fqcn );
+		$this->using( $fqcn )?->import();
 
 		return $callable;
 	}
 
 	/** @return string|string[] */
 	private function normalizeFirstClassCallable( Closure $value ): string|array {
-		$reflection       = new ReflectionFunction( $value );
-		$funcOrMethodName = $reflection->getShortName();
-		$lateBindingClass = $reflection->getClosureCalledClass();
+		$ref              = new ReflectionFunction( $value );
+		$funcOrMethodName = $ref->getShortName();
+		$lateBindingClass = $ref->getClosureCalledClass();
 
 		if ( $lateBindingClass ) {
-			$this->maybeImport( $fqcn = $lateBindingClass->name );
+			$this->using( $name = $lateBindingClass->name )?->import();
 
-			return array( $fqcn, $funcOrMethodName );
+			return array( $name, $funcOrMethodName );
 		}
 
-		if ( $reflection->getNamespaceName() ) {
-			$this->maybeImport( $funcOrMethodName = $reflection->name, type: PhpNamespace::NAME_FUNCTION );
+		if ( $ref->getNamespaceName() ) {
+			$this->using( $funcOrMethodName = $ref->name )?->ofType( PhpNamespace::NAME_FUNCTION )->import();
 		}
 
 		return $funcOrMethodName;
@@ -194,21 +194,8 @@ class ArrayPhpFile {
 	 * @return array{0:string,1:string}
 	 */
 	private function normalizeArrayCallable( array $value ): array {
-		$this->maybeImport( key: $value[0], type: PhpNamespace::NAME_NORMAL );
+		$this->using( item: $value[0] )?->ofType( PhpNamespace::NAME_NORMAL )->import();
 
 		return $value;
-	}
-
-	private function getAliasBy( string $import, string $type ): string|false|null {
-		return in_array( $import, $imports = $this->getNamespace()->getUses( of: $type ), strict: true )
-			? ( ( $alias = array_search( $import, $imports, strict: true ) ) ? (string) $alias : false )
-			: null;
-	}
-
-	/** @param PhpNamespace::NAME* $type */
-	private function maybeImport( string $key, string $type = null ): void {
-		self::isSubscribedForImport()
-			&& Helpers::isNamespaceIdentifier( $key )
-			&& $this->addUseStatementOf( $key, $type ?? PhpNamespace::NAME_NORMAL );
 	}
 }

@@ -4,73 +4,77 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Generator\Traits;
 
 use Nette\PhpGenerator\Helpers;
-use Nette\PhpGenerator\PhpNamespace;
+use Nette\PhpGenerator\PhpNamespace as Ns;
 
 trait ImportResolver {
-	private PhpNamespace $namespace;
+	private Ns $namespace;
+	private string $import;
 
-	/** @var array{0:string,1:string,2:string} */
-	private array $currentlyImportingItem;
+	/** @var Ns::NAME_* */
+	private string $type = Ns::NAME_NORMAL;
+	/** @var ?string[] */
+	private ?array $currentTypeImports = null;
 
-	public function setNamespace( PhpNamespace $namespace = null ): static {
-		$this->namespace ??= $namespace ?? new PhpNamespace( '' );
+	/** @param Ns::NAME_* $type */
+	public function ofType( string $type ): static {
+		$this->type = $type;
 
 		return $this;
 	}
 
-	public function getNamespace(): PhpNamespace {
-		return $this->namespace;
-	}
-
-	/**
-	 * @param PhpNamespace::NAME* $type
-	 * @return string The alias of the $item that is being imported. Mostly the classname only without the
-	 *                namespace part. If already has alias, alias is prefixed with last part of namespace.
-	 */
-	public function addUseStatementOf( string $item, string $type = PhpNamespace::NAME_NORMAL ): string {
-		$nameOnly                     = Helpers::extractShortName( $item );
-		$this->currentlyImportingItem = array( $item, $type, $nameOnly );
-
-		if ( $this->hasAlreadyImportedCurrentItem() ) {
-			return $this->currentItemResolvedAs( $nameOnly );
+	public function import(): bool {
+		if ( $this->itemExistsInCurrentImports() ) {
+			return false;
 		}
 
-		$namePrefixedByLastPartOfNamespace = $this->prefixedWithLastPartOfCurrentItemNamespace();
+		$alias = $this->maybeCreateAltAliasFor( Helpers::extractShortName( $this->import ) );
 
-		$this->getNamespace()->addUse( $item, $namePrefixedByLastPartOfNamespace, of: $type );
+		$this->namespace->addUse( $this->import, $alias, of: $this->type );
 
-		return $this->currentItemResolvedAs( $namePrefixedByLastPartOfNamespace );
+		return true;
 	}
 
-	private function hasAlreadyImportedCurrentItem(): bool {
-		[$item] = $this->currentlyImportingItem;
-
-		return in_array( $item, haystack: $this->getNamespace()->getUses(), strict: true );
+	public function getAlias(): ?string {
+		return $this->itemExistsInCurrentImports() ? $this->findAliasInCurrentImports() : null;
 	}
 
-	private function hasAlreadyAliasedCurrentItem(): bool {
-		[, $type, $nameOnly] = $this->currentlyImportingItem;
-
-		return ! empty( $uses = $this->getNamespace()->getUses( of: $type ) ) && array_filter(
-			array: $uses,
-			callback: static fn( string $alias ): bool => $alias === $nameOnly,
-			mode: ARRAY_FILTER_USE_KEY
-		);
+	final public function getFormattedAlias(): ?string {
+		return match ( true ) {
+			! is_null( $alias = $this->ofType( Ns::NAME_NORMAL )->getAlias() )   => "{$alias}::class",
+			! is_null( $alias = $this->ofType( Ns::NAME_FUNCTION )->getAlias() ) => $alias,
+			default                                                              => null,
+		};
 	}
 
-	private function prefixedWithLastPartOfCurrentItemNamespace(): string {
-		[$fqcn,, $nameOnly] = $this->currentlyImportingItem;
+	final protected function importStatementIn( Ns $namespace, string $item ): void {
+		$this->namespace = $namespace;
+		$this->import    = $item;
+	}
 
-		$namespaceLastPart = $this->hasAlreadyAliasedCurrentItem()
-			? Helpers::extractShortName( Helpers::extractNamespace( $fqcn ) )
+	final protected function findAliasInCurrentImports(): ?string {
+		return (string) array_search( $this->import, $this->getCurrentTypeImports(), strict: true ) ?: null;
+	}
+
+	final protected function importedItemAliasedAs( string $alias ): bool {
+		return ! empty( $imports = $this->getCurrentTypeImports() ) && isset( $imports[ $alias ] );
+	}
+
+	protected function maybeCreateAltAliasFor( string $alias ): string {
+		$namespaceLastPart = $this->importedItemAliasedAs( $alias )
+			? Helpers::extractShortName( Helpers::extractNamespace( $this->import ) )
 			: '';
 
-		return $namespaceLastPart . $nameOnly;
+		return $namespaceLastPart . $alias;
 	}
 
-	private function currentItemResolvedAs( string $item ): string {
-		unset( $this->currentlyImportingItem );
+	private function itemExistsInCurrentImports(): bool {
+		$this->currentTypeImports = $this->namespace->getUses( $this->type );
 
-		return $item;
+		return in_array( $this->import, $this->currentTypeImports, strict: true );
+	}
+
+	/** @return string[] */
+	private function getCurrentTypeImports(): array {
+		return $this->currentTypeImports ?? $this->namespace->getUses( of: $this->type );
 	}
 }
