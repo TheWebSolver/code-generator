@@ -3,11 +3,14 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage;
 
+use DateTime;
+use OutOfBoundsException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Depends;
 use TheWebSolver\Codegarage\Generator\ArrayPhpFile;
 use TheWebSolver\Codegarage\Generator\Enum\Argument;
+use TheWebSolver\Codegarage\Generator\Helper\UseBuilder;
 
 class ArrayPhpFileTest extends TestCase {
 	#[Test]
@@ -59,6 +62,10 @@ class ArrayPhpFileTest extends TestCase {
 
 		$this->assertSame( $namespacedFunc, $file->getContent()['testNsFirstClass'] );
 
+		$file->addCallable( 'datetime', DateTime::createFromFormat( ... ) );
+
+		$this->assertSame( array( DateTime::class, 'createFromFormat' ), $file->getContent()['datetime'] );
+
 		return $file;
 	}
 
@@ -83,6 +90,46 @@ class ArrayPhpFileTest extends TestCase {
 			$print
 		);
 		$this->assertStringContainsString( "\t'testNsFirstClass' => testFirstClassCallable(...),\n", $print );
+	}
+
+	#[Test]
+	#[Depends( 'itAddsCallableOfVariousTypes' )]
+	public function itEnsuresImportedItemAliasCanBeRetrieved( ArrayPhpFile $file ): void {
+		$this->assertSame( 'TestCase::class', $file->getAliasOf( TestCase::class ) );
+		$this->assertSame(
+			'ArrayPhpFileTest::class',
+			$file->getAliasOf( $this->itAddsCallableOfVariousTypes( ... ) )
+		);
+		$this->assertSame(
+			'ArrayPhpFileTest::class',
+			$file->getAliasOf( array( self::class, __FUNCTION__ ) ),
+			'Does not matter with method name if classname is same'
+		);
+		$this->assertSame( 'TestCase::class', $file->getAliasOf( TestCase::assertIsString( ... ) ) );
+		$this->assertSame( 'testFirstClassCallable', $file->getAliasOf( testFirstClassCallable( ... ) ) );
+
+		$this->assertSame( 'DateTime::class', $file->getAliasOf( \DateTime::createFromFormat( ... ) ) );
+
+		$this->expectException( OutOfBoundsException::class );
+		$file->getAliasOf( is_string( ... ), 'Global function is not imported. So, no alias.' );
+	}
+
+	#[Test]
+	public function itUsesBuilderToImportItem(): void {
+		$file = new ArrayPhpFile();
+
+		$this->assertInstanceOf( UseBuilder::class, $file->using( testFirstClassCallable( ... ) ) );
+		$this->assertInstanceOf( UseBuilder::class, $file->using( __METHOD__ ) );
+		$this->assertInstanceOf( UseBuilder::class, $file->using( 'is_string' ) );
+		$this->assertInstanceOf( UseBuilder::class, $file->using( is_string( ... ) ) );
+		$this->assertInstanceOf( UseBuilder::class, $file->using( 'Any\\String\\Is\\Valid' ) );
+		$this->assertInstanceOf( UseBuilder::class, $file->using( 'withNoNamespaceIsAlsoValid' ) );
+
+		$unsubscribe = $file::subscribeForImport( false );
+
+		$this->assertNull( $file->using( __METHOD__ ), 'Cannot use builder when import is disabled.' );
+
+		$unsubscribe();
 	}
 
 	#[Test]
