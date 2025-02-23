@@ -61,16 +61,8 @@
 	</rule>
 
 	<!-- Allow setting param names: "$for", "$object", etc. -->
-	<rule ref="Universal.NamingConventions.NoReservedKeywordParameterNames">
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.fnFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.forFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.arrayFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.classFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.stringFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.objectFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.abstractFound"/>
-		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.namespaceFound"/>
+	<rule ref="Universal.NamingConventions">
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames"/>
 	</rule>
 
 	<!-- Allow using double negation "!!". -->
