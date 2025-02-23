@@ -18,16 +18,23 @@ use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
 class ArrayPhpFile {
 	use ArrayExport;
 
+	private const NON_IMPORTABLE_ITEM      = 'Impossible to find alias of non-imported item.';
+	private const IMPORTABLE_ITEM_DEFAULTS = array(
+		'callable'   => false,
+		'beingAdded' => false,
+	);
+
 	/** @var mixed[] */
 	private array $content = array();
 	private string|int $parentKey;
-
 	private static bool $subscribeImports = true;
 	/** @var array<string,string> */
 	private array $nonNamespacedClasses = array();
+	/** @var array{callable:bool,beingAdded:bool} */
+	private array $currentItem = self::IMPORTABLE_ITEM_DEFAULTS;
 
 	public function __construct(
-		public readonly PhpFile $phpFile = new PhpFile(),
+		private PhpFile $phpFile = new PhpFile(),
 		private Printer $printer = new Printer(),
 		private Dumper $dumper = new Dumper(),
 		private PhpNamespace $namespace = new PhpNamespace( '' )
@@ -46,19 +53,6 @@ class ArrayPhpFile {
 		return self::$subscribeImports;
 	}
 
-	/** @param string|array{0:string,1:string}|Closure $item Other content or callable item. */
-	public function using( string|array|Closure $item ): ?UseBuilder {
-		if ( ! self::isSubscribedForImport() ) {
-			return null;
-		}
-
-		$callable = $this->normalizeCallable( $item, onlyImportable: true );
-
-		return Helpers::isNamespaceIdentifier( $callable )
-			? ( new UseBuilder( $callable, $this->namespace ) )
-			: null;
-	}
-
 	/** @return mixed[] */
 	public function getContent(): array {
 		return $this->content;
@@ -69,8 +63,7 @@ class ArrayPhpFile {
 	 * @throws OutOfBoundsException When provided $item is not imported.
 	 */
 	public function getAliasOf( string|array|Closure $item ): string {
-		$import   = $this->normalizeCallable( $item, onlyImportable: true );
-		$errorMsg = 'Impossible to find alias of non-imported item.';
+		$import = $this->normalizeCallable( $item, onlyImportable: true );
 
 		if ( $alias = $this->using( $import )?->getFormattedAlias() ) {
 			return $alias;
@@ -80,7 +73,7 @@ class ArrayPhpFile {
 			return "{$alias}::class";
 		}
 
-		return $import === $item ? $import : throw new OutOfBoundsException( $errorMsg );
+		return $import === $item ? $import : throw new OutOfBoundsException( self::NON_IMPORTABLE_ITEM );
 	}
 
 	public function print(): string {
@@ -99,8 +92,9 @@ class ArrayPhpFile {
 	}
 
 	/** Sets the parent key for creating multi-dimensional array. */
-	public function childOf( string|int $parentKey ): static {
-		$this->parentKey = $parentKey;
+	public function childOf( string|int $parentKey, string|int ...$keys ): static {
+		$this->parentKey           = $parentKey;
+		$keys && $this->parentKey .= '.' . implode( separator: '.', array: $keys );
 
 		return $this;
 	}
@@ -112,8 +106,22 @@ class ArrayPhpFile {
 	}
 
 	/** @param string|array{0:string,1:string}|Closure $value Only static method's first-class callable is supported. */
-	public function addCallable( string|int $key, string|array|Closure $value ): static {
-		return $this->addContent( $key, value: $this->normalizeCallable( $value, onlyImportable: false ) );
+	public function addImportableContent( string|int $key, string|array|Closure $value ): static {
+		return $this->asImportableItem()
+			->addContent( $key, value: $this->normalizeCallable( $value, onlyImportable: false ) )
+			->resetImportableItem();
+	}
+
+	final protected function asImportableItem( bool $callable = true, bool $beingAdded = true ): static {
+		$this->currentItem = compact( 'callable', 'beingAdded' );
+
+		return $this;
+	}
+
+	final protected function resetImportableItem(): static {
+		$this->currentItem = self::IMPORTABLE_ITEM_DEFAULTS;
+
+		return $this;
 	}
 
 	/**
@@ -125,7 +133,7 @@ class ArrayPhpFile {
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
-			$this->using( $key )?->import();
+			$this->currentItem['callable'] && $this->using( $key )?->import();
 
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
@@ -167,7 +175,7 @@ class ArrayPhpFile {
 		};
 	}
 
-	private function maybeWithParent( string|int $key ): string {
+	protected function maybeWithParent( string|int $key ): string {
 		$parentKey         = ( $this->parentKey ?? null );
 		$parentKey && $key = "{$parentKey}.{$key}";
 
@@ -176,15 +184,21 @@ class ArrayPhpFile {
 		return (string) $key;
 	}
 
-	private function isClassString( string $content ): bool {
+	protected function isClassString( string $content ): bool {
 		return str_contains( haystack: $content, needle: '::' );
+	}
+
+	protected function using( string $item ): ?UseBuilder {
+		return self::isSubscribedForImport()
+			? ( Helpers::isNamespaceIdentifier( $item ) ? ( new UseBuilder( $item, $this->namespace ) ) : null )
+			: null;
 	}
 
 	/**
 	 * @param string|array{0:string,1:string}|Closure $value
 	 * @return ($onlyImportable is true ? string : string|array{0:string,1:string})
 	 */
-	public function normalizeCallable( string|array|Closure $value, bool $onlyImportable ): string|array {
+	protected function normalizeCallable( string|array|Closure $value, bool $onlyImportable ): string|array {
 		$callable = match ( true ) {
 			is_string( $value )       => $this->normalizeStringCallable( $value ),
 			$value instanceof Closure => $this->normalizeFirstClassCallable( $value ),
@@ -192,6 +206,24 @@ class ArrayPhpFile {
 		};
 
 		return is_string( $callable ) ? $callable : ( $onlyImportable ? $callable[0] : $callable );
+	}
+
+	/**
+	 * @param array{0:string,1:string} $value
+	 * @return array{0:string,1:string}
+	 */
+	private function normalizeArrayCallable( array $value ): array {
+		if ( ! $this->currentItem['beingAdded'] ) {
+			return $value;
+		}
+
+		$this->using( $classname = $value[0] )?->import();
+
+		if ( $this->shouldRegisterAsGlobalScopeClass( $classname ) ) {
+			$this->nonNamespacedClasses[ $classname ] = $classname;
+		}
+
+		return $value;
 	}
 
 	/** @return string|array{0:string,1:string} */
@@ -207,42 +239,33 @@ class ArrayPhpFile {
 
 	/** @return string|array{0:string,1:string} */
 	private function normalizeFirstClassCallable( Closure $value ): string|array {
-		$ref              = new ReflectionFunction( $value );
-		$funcOrMethodName = $ref->getShortName();
-		$lateBindingClass = $ref->getClosureCalledClass();
+		$ref = new ReflectionFunction( $value );
 
-		if ( $lateBindingClass ) {
-			$this->using( $name = $lateBindingClass->name )?->import();
+		if ( $lateBindingClass = $ref->getClosureCalledClass() ) {
+			$name = $lateBindingClass->name;
 
-			if ( $this->isInGlobalScope( $name ) ) {
-				$this->nonNamespacedClasses[ $name ] = $name;
+			if ( $this->currentItem['beingAdded'] ) {
+				$this->using( $name )?->import();
+
+				if ( $this->shouldRegisterAsGlobalScopeClass( $name ) ) {
+					$this->nonNamespacedClasses[ $name ] = $name;
+				}
 			}
 
-			return array( $name, $funcOrMethodName );
+			return array( $name, $ref->getShortName() );
 		}
 
 		if ( $ref->getNamespaceName() ) {
-			$this->using( $funcOrMethodName = $ref->name )?->ofType( PhpNamespace::NAME_FUNCTION )->import();
+			$funcOrMethodName = $ref->name;
+
+			$this->currentItem['beingAdded']
+				&& $this->using( $funcOrMethodName )?->ofType( PhpNamespace::NAME_FUNCTION )->import();
 		}
 
-		return $funcOrMethodName;
+		return $funcOrMethodName ?? $ref->name;
 	}
 
-	/**
-	 * @param array{0:string,1:string} $value
-	 * @return array{0:string,1:string}
-	 */
-	private function normalizeArrayCallable( array $value ): array {
-		$this->using( item: $value[0] )?->ofType( PhpNamespace::NAME_NORMAL )->import();
-
-		if ( $this->isInGlobalScope( $value[0] ) ) {
-			$this->nonNamespacedClasses[ $value[0] ] = $value[0];
-		}
-
-		return $value;
-	}
-
-	private function isInGlobalScope( string $name ): bool {
+	private function shouldRegisterAsGlobalScopeClass( string $name ): bool {
 		return ! str_contains( $name, needle: '\\' )
 			&& ! in_array( $name, $this->nonNamespacedClasses, strict: true );
 	}

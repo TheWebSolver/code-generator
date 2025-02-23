@@ -10,7 +10,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Depends;
 use TheWebSolver\Codegarage\Generator\ArrayPhpFile;
 use TheWebSolver\Codegarage\Generator\Enum\Argument;
-use TheWebSolver\Codegarage\Generator\Helper\UseBuilder;
 
 class ArrayPhpFileTest extends TestCase {
 	#[Test]
@@ -40,29 +39,29 @@ class ArrayPhpFileTest extends TestCase {
 	public function itAddsCallableOfVariousTypes(): ArrayPhpFile {
 		$file = new ArrayPhpFile();
 
-		$file->addCallable( key: 'testFunc', value: 'assert' );
+		$file->addImportableContent( key: 'testFunc', value: 'assert' );
 
 		$this->assertSame( 'assert', $file->getContent()['testFunc'] );
 
-		$file->addCallable( key: 'testMethod', value: __METHOD__ );
+		$file->addImportableContent( key: 'testMethod', value: __METHOD__ );
 
 		$this->assertSame( array( self::class, __FUNCTION__ ), $file->getContent()['testMethod'] );
 
-		$file->addCallable( key: 'funcFirstClass', value: is_string( ... ) );
+		$file->addImportableContent( key: 'funcFirstClass', value: is_string( ... ) );
 
 		$this->assertSame( 'is_string', $file->getContent()['funcFirstClass'] );
 
-		$file->addCallable( key: 'methodFirstClass', value: TestCase::assertIsString( ... ) );
+		$file->addImportableContent( key: 'methodFirstClass', value: TestCase::assertIsString( ... ) );
 
 		$this->assertSame( array( TestCase::class, 'assertIsString' ), $file->getContent()['methodFirstClass'] );
 
-		$file->addCallable( 'testNsFirstClass', value: testFirstClassCallable( ... ) );
+		$file->addImportableContent( 'testNsFirstClass', value: testFirstClassCallable( ... ) );
 
 		$namespacedFunc = __NAMESPACE__ . '\\testFirstClassCallable';
 
 		$this->assertSame( $namespacedFunc, $file->getContent()['testNsFirstClass'] );
 
-		$file->addCallable( 'datetime', DateTime::createFromFormat( ... ) );
+		$file->addImportableContent( 'datetime', DateTime::createFromFormat( ... ) );
 
 		$this->assertSame( array( DateTime::class, 'createFromFormat' ), $file->getContent()['datetime'] );
 
@@ -76,7 +75,7 @@ class ArrayPhpFileTest extends TestCase {
 		$namespacedFunc = __NAMESPACE__ . '\\testFirstClassCallable';
 
 		foreach ( array( TestCase::class, self::class ) as $import ) {
-			$this->assertStringContainsString( "use {$import}", $print );
+			$this->assertStringContainsString( "use {$import};\n", $print );
 		}
 
 		$this->assertStringContainsString( "use function {$namespacedFunc}", $print );
@@ -96,10 +95,7 @@ class ArrayPhpFileTest extends TestCase {
 	#[Depends( 'itAddsCallableOfVariousTypes' )]
 	public function itEnsuresImportedItemAliasCanBeRetrieved( ArrayPhpFile $file ): void {
 		$this->assertSame( 'TestCase::class', $file->getAliasOf( TestCase::class ) );
-		$this->assertSame(
-			'ArrayPhpFileTest::class',
-			$file->getAliasOf( $this->itAddsCallableOfVariousTypes( ... ) )
-		);
+		$this->assertSame( 'ArrayPhpFileTest::class', $file->getAliasOf( $this->itAddsCallableOfVariousTypes( ... ) ) );
 		$this->assertSame(
 			'ArrayPhpFileTest::class',
 			$file->getAliasOf( array( self::class, __FUNCTION__ ) ),
@@ -115,51 +111,52 @@ class ArrayPhpFileTest extends TestCase {
 	}
 
 	#[Test]
-	public function itUsesBuilderToImportItem(): void {
-		$file = new ArrayPhpFile();
+	public function itOnlyImportItemUsingImportableMethod(): void {
+		$file = ( new ArrayPhpFile() )->addImportableContent( Argument::class, 'will be imported' );
 
-		$this->assertInstanceOf( UseBuilder::class, $file->using( testFirstClassCallable( ... ) ) );
-		$this->assertInstanceOf( UseBuilder::class, $file->using( __METHOD__ ) );
-		$this->assertInstanceOf( UseBuilder::class, $file->using( 'is_string' ) );
-		$this->assertInstanceOf( UseBuilder::class, $file->using( is_string( ... ) ) );
-		$this->assertInstanceOf( UseBuilder::class, $file->using( 'Any\\String\\Is\\Valid' ) );
-		$this->assertInstanceOf( UseBuilder::class, $file->using( 'withNoNamespaceIsAlsoValid' ) );
+		$this->assertStringContainsString(
+			'use ' . Argument::class,
+			$file->print(),
+			'Must not import if ::addContent() method is used.'
+		);
 
-		$unsubscribe = $file::subscribeForImport( false );
+		$file = ( new ArrayPhpFile() )->addContent( Argument::class, 'will not be imported' );
 
-		$this->assertNull( $file->using( __METHOD__ ), 'Cannot use builder when import is disabled.' );
-
-		$unsubscribe();
+		$this->assertStringNotContainsString(
+			'use ' . Argument::class,
+			$file->print(),
+			'Must not import if ::addContent() method is used.'
+		);
 	}
 
 	#[Test]
 	public function classNameKeyAndCallableMethodAreImportedProperly(): void {
 		$file = new ArrayPhpFile();
 
-		$file->addCallable( Argument::class, array( Argument::class, 'casesToString' ) );
+		$file->addImportableContent( Argument::class, array( Argument::class, 'casesToString' ) );
 
 		$this->assertSame(
 			array( Argument::class => array( Argument::class, 'casesToString' ) ),
 			$file->getContent()
 		);
 
-		$file->childOf( 'callables.' . TestCase::class )
-			->addCallable( 'callback', array( self::class, 'assertTrue' ) );
+		$file->childOf( 'callables', TestCase::class )
+			->addImportableContent( 'callback', array( self::class, 'assertTrue' ) );
 
 		$this->assertSame(
 			array( 'callback' => array( self::class, 'assertTrue' ) ),
 			$file->getContent()['callables'][ TestCase::class ]
 		);
 
-		$file->childOf( 'callables.' . TestCase::class )
-			->addCallable( Test::class, array( Test::class, 'attribute' ) );
+		$file->childOf( 'callables', TestCase::class )
+			->addImportableContent( Test::class, array( Test::class, 'attribute' ) );
 
 		$this->assertSame(
 			array( Test::class, 'attribute' ),
 			$file->getContent()['callables'][ TestCase::class ][ Test::class ]
 		);
 
-		$file->childOf( 'callables.' . TestCase::class )->addContent( 'simple', 'value' );
+		$file->childOf( 'callables', TestCase::class )->addContent( 'simple', 'value' );
 
 		$this->assertSame(
 			'value',
@@ -172,28 +169,38 @@ class ArrayPhpFileTest extends TestCase {
 			array_keys( $file->getContent()['callables'][ TestCase::class ] )
 		);
 
-		$file->childOf( 'firstDepth.secondDepth.thirdDepth' )->addContent( 'some', 'thing' );
+		$file->childOf( 'firstDepth', 'secondDepth', 'thirdDepth' )->addContent( 'some', 'thing' );
 
 		$this->assertSame(
 			'thing',
 			$file->getContent()['firstDepth']['secondDepth']['thirdDepth']['some']
 		);
 
-		$file->childOf( 'firstDepth.secondDepth' )->addContent( 'atSecond', 'insertIt' );
+		$file->childOf( 'firstDepth', 'secondDepth' )->addContent( 'atSecond', 'insertIt' );
 
 		$this->assertSame(
 			array( 'thirdDepth', 'atSecond' ),
 			array_keys( $file->getContent()['firstDepth']['secondDepth'] )
 		);
 
+		$file->childOf( 'firstDepth' )->addImportableContent( 'globalScope', 'DateTime::createFromFormat' );
+
 		$print = $file->print();
 
+		// Import statements.
+		$imports = array( self::class, Argument::class, TestCase::class, Test::class, DateTime::class );
+
+		foreach ( $imports as $classname ) {
+			$this->assertStringContainsString( "use {$classname};\n", $print );
+		}
+
+		// Array exports.
 		$this->assertStringContainsString( "\t'callables' => array(\n", $print );
 		$this->assertStringContainsString( "\t\tTestCase::class => array(\n", $print );
 		$this->assertStringContainsString( "\t\t\t'callback' => array( ArrayPhpFileTest::class, 'assertTrue' ),\n", $print );
 		$this->assertStringContainsString( ",\n\t\t\tTest::class => array( Test::class, 'attribute' ),\n", $print );
-
 		$this->assertStringContainsString( "\t'firstDepth' => array(\n", $print );
+		$this->assertStringContainsString( "\t\t'globalScope' => array( DateTime::class, 'createFromFormat' ),\n", $print );
 		$this->assertStringContainsString( "\t\t'secondDepth' => array(\n", $print );
 		$this->assertStringContainsString( "\n\t\t\t'thirdDepth' => array( 'some' => 'thing' ),\n", $print );
 
