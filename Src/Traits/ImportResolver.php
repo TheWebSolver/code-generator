@@ -6,7 +6,7 @@ namespace TheWebSolver\Codegarage\Generator\Traits;
 use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\PhpNamespace as Ns;
 
-trait ImportResolver {
+trait NamespaceImporter {
 	private Ns $namespace;
 	private string $import;
 
