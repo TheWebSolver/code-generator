@@ -89,6 +89,19 @@ class ArrayPhpFile {
 		return $print;
 	}
 
+	/**
+	 * Imports either global class or namespaced class, function, constant etc.
+	 * It will not import names that is globally scoped except only classname.
+	 *
+	 * @param PhpNamespace::NAME_* $type The name type that is being imported. Defaults to classname.
+	 */
+	public function importFrom( string $name, string $type = PhpNamespace::NAME_NORMAL ): static {
+		( PhpNamespace::NAME_NORMAL === $type && $this->importGlobal( $name ) )
+			|| $this->namespaced( $name )?->ofType( $type )->import();
+
+		return $this;
+	}
+
 	/** Sets the parent key(s) to create multi-dimensional array for the content being added. */
 	public function childOf( string|int $firstLevelIndex, string|int ...$subLevelIndices ): static {
 		$this->parentKey                      = $firstLevelIndex;
@@ -128,8 +141,6 @@ class ArrayPhpFile {
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
-			$this->callableBeingAdded() && $this->namespaced( $key )?->import();
-
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
 
@@ -189,14 +200,6 @@ class ArrayPhpFile {
 			: null;
 	}
 
-	/** @param PhpNamespace::NAME_* $type */
-	private function importFromCallable( string $name, string $type = PhpNamespace::NAME_NORMAL ): void {
-		$this->callableBeingAdded() && (
-			( PhpNamespace::NAME_NORMAL === $type && $this->importGlobal( $name ) )
-			|| $this->namespaced( $name )?->ofType( $type )->import()
-		);
-	}
-
 	/**
 	 * @param string|array{0:string,1:string}|Closure $value
 	 * @return ($onlyImportable is true ? string : string|array{0:string,1:string})
@@ -216,7 +219,7 @@ class ArrayPhpFile {
 	 * @return array{0:string,1:string}
 	 */
 	private function normalizeArrayCallable( array $value ): array {
-		$this->importFromCallable( name: $value[0] );
+		$this->callableBeingAdded() && $this->importFrom( name: $value[0] );
 
 		return $value;
 	}
@@ -249,7 +252,8 @@ class ArrayPhpFile {
 
 	private function toFunctionCallableFrom( ReflectionFunction $reflection ): string {
 		$reflection->getNamespaceName()
-			&& $this->importFromCallable( $name = $reflection->getName(), type: PhpNamespace::NAME_FUNCTION );
+			&& $this->callableBeingAdded()
+			&& $this->importFrom( $name = $reflection->getName(), type: PhpNamespace::NAME_FUNCTION );
 
 		return $name ?? $reflection->getName();
 	}

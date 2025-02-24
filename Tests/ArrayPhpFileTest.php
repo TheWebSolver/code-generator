@@ -4,6 +4,7 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage;
 
 use DateTime;
+use SplFixedArray;
 use OutOfBoundsException;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -75,20 +76,20 @@ class ArrayPhpFileTest extends TestCase {
 		$namespacedFunc = __NAMESPACE__ . '\\testFirstClassCallable';
 
 		foreach ( array( TestCase::class, self::class ) as $import ) {
-			$this->assertStringContainsString( "use {$import};\n", $print );
+			$this->assertPhpFilePrints( "use {$import};\n", $print );
 		}
 
-		$this->assertStringContainsString( "use function {$namespacedFunc}", $print );
+		$this->assertPhpFilePrints( "use function {$namespacedFunc}", $print );
 
 		foreach ( array( "'testFunc' => 'assert'", "'funcFirstClass' => 'is_string'" ) as $printedFunc ) {
-			$this->assertStringContainsString( $printedFunc, $print );
+			$this->assertPhpFilePrints( $printedFunc, $print );
 		}
 
-		$this->assertStringContainsString(
+		$this->assertPhpFilePrints(
 			"\t'testMethod' => array( ArrayPhpFileTest::class, 'itAddsCallableOfVariousTypes' ),\n",
 			$print
 		);
-		$this->assertStringContainsString( "\t'testNsFirstClass' => testFirstClassCallable(...),\n", $print );
+		$this->assertPhpFilePrints( "\t'testNsFirstClass' => testFirstClassCallable(...),\n", $print );
 	}
 
 	#[Test]
@@ -112,18 +113,22 @@ class ArrayPhpFileTest extends TestCase {
 
 	#[Test]
 	public function itOnlyImportItemUsingImportableMethod(): void {
-		$file        = ( new ArrayPhpFile() )->addImportableContent( Argument::class, 'will be imported' );
+		$file     = new ArrayPhpFile();
+		$callable = array( Argument::class, 'cases' );
+
+		$file->addImportableContent( 'imported', $callable );
+
 		$useArgument = 'use ' . Argument::class;
 
-		$this->assertStringContainsString( $useArgument, $file->print() );
+		$this->assertPhpFilePrints( $useArgument, $file->print() );
 
-		$file = ( new ArrayPhpFile() )->addContent( Argument::class, 'will not be imported' );
+		$file = ( new ArrayPhpFile() )->addContent( 'notImported', $callable );
 
 		$this->assertStringNotContainsString( $useArgument, $file->print() );
 	}
 
 	#[Test]
-	public function classNameKeyAndCallableMethodAreImportedProperly(): void {
+	public function classNameKeyAndCallableMethodAreImportedProperly(): ArrayPhpFile {
 		$file = new ArrayPhpFile();
 
 		$file->addImportableContent( Argument::class, array( Argument::class, 'casesToString' ) );
@@ -133,7 +138,15 @@ class ArrayPhpFileTest extends TestCase {
 			$file->getContent()
 		);
 
-		$file->childOf( 'callables', TestCase::class )
+		// No need to import key manually as value contains same key and it'll be imported automatically.
+		// See `self::itEnsuresUseStatementsAreProperlyImported()` method for import assertion test.
+		$file->addImportableContent( SplFixedArray::class, array( SplFixedArray::class, 'fromArray' ) );
+
+		$this->assertSame( array( SplFixedArray::class, 'fromArray' ), $file->getContent()[ SplFixedArray::class ] );
+
+		// Key must be imported manually if its not present in any of the value that is added as file content.
+		$file->importFrom( TestCase::class )
+			->childOf( 'callables', TestCase::class )
 			->addImportableContent( 'callback', array( self::class, 'assertTrue' ) );
 
 		$this->assertSame(
@@ -180,24 +193,43 @@ class ArrayPhpFileTest extends TestCase {
 
 		$print = $file->print();
 
-		// Import statements.
-		$imports = array( self::class, Argument::class, TestCase::class, Test::class, DateTime::class );
+		$this->assertSame( $print, $file->print(), 'Each print must flush its own artefact.' );
+
+		return $file;
+	}
+
+	#[Test]
+	#[Depends( 'classNameKeyAndCallableMethodAreImportedProperly' )]
+	public function itEnsuresUseStatementsAreProperlyImported( ArrayPhpFile $file ): string {
+		// Preceding namespace separator does not matter either importing or adding content.
+		// Also, no need to use `::addImportableContent` method as value does not have anything importable.
+		$print   = $file->importFrom( 'BackedEnum' )->addContent( '\BackedEnum', 'cases' )->print();
+		$imports = array( self::class, Argument::class, TestCase::class, Test::class, DateTime::class, SplFixedArray::class, 'BackedEnum' );
 
 		foreach ( $imports as $classname ) {
-			$this->assertStringContainsString( "use {$classname};\n", $print );
+			$this->assertPhpFilePrints( "use {$classname};\n", $print );
 		}
 
-		// Array exports.
-		$this->assertStringContainsString( "\t'callables' => array(\n", $print );
-		$this->assertStringContainsString( "\t\tTestCase::class => array(\n", $print );
-		$this->assertStringContainsString( "\t\t\t'callback' => array( ArrayPhpFileTest::class, 'assertTrue' ),\n", $print );
-		$this->assertStringContainsString( ",\n\t\t\tTest::class => array( Test::class, 'attribute' ),\n", $print );
-		$this->assertStringContainsString( "\t'firstDepth' => array(\n", $print );
-		$this->assertStringContainsString( "\t\t'globalScope' => array( DateTime::class, 'createFromFormat' ),\n", $print );
-		$this->assertStringContainsString( "\t\t'secondDepth' => array(\n", $print );
-		$this->assertStringContainsString( "\n\t\t\t'thirdDepth' => array( 'some' => 'thing' ),\n", $print );
+		return $print;
+	}
 
-		$this->assertSame( $print, $file->print(), 'Each print must flush its own artefact.' );
+	#[Test]
+	#[Depends( 'itEnsuresUseStatementsAreProperlyImported' )]
+	public function itEnsuresArrayValuesAreProperlyExported( string $print ): void {
+		$this->assertPhpFilePrints( "\t'callables' => array(\n", $print );
+		$this->assertPhpFilePrints( "\tBackedEnum::class => 'cases',\n", $print );
+		$this->assertPhpFilePrints( "\tSplFixedArray::class => array( SplFixedArray::class, 'fromArray' ),\n", $print );
+		$this->assertPhpFilePrints( "\t\tTestCase::class => array(\n", $print );
+		$this->assertPhpFilePrints( "\t\t\t'callback' => array( ArrayPhpFileTest::class, 'assertTrue' ),\n", $print );
+		$this->assertPhpFilePrints( ",\n\t\t\tTest::class => array( Test::class, 'attribute' ),\n", $print );
+		$this->assertPhpFilePrints( "\t'firstDepth' => array(\n", $print );
+		$this->assertPhpFilePrints( "\t\t'globalScope' => array( DateTime::class, 'createFromFormat' ),\n", $print );
+		$this->assertPhpFilePrints( "\t\t'secondDepth' => array(\n", $print );
+		$this->assertPhpFilePrints( "\n\t\t\t'thirdDepth' => array( 'some' => 'thing' ),\n", $print );
+	}
+
+	private function assertPhpFilePrints( string $stringPart, string $fullPrint ): void {
+		$this->assertStringContainsString( $stringPart, $fullPrint );
 	}
 }
 
