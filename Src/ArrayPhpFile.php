@@ -14,9 +14,10 @@ use Nette\PhpGenerator\Printer;
 use Nette\PhpGenerator\PhpNamespace;
 use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
 use TheWebSolver\Codegarage\Generator\Helper\ImportBuilder;
+use TheWebSolver\Codegarage\Generator\Traits\GlobalImporter;
 
 class ArrayPhpFile {
-	use ArrayExport;
+	use GlobalImporter, ArrayExport;
 
 	/** @var non-empty-string */
 	protected const PARENT_INDICES_SEPARATOR = '.';
@@ -30,8 +31,6 @@ class ArrayPhpFile {
 	private array $content = array();
 	private string|int $parentKey;
 	private static bool $subscribeImports = true;
-	/** @var array<string,string> */
-	private array $nonNamespacedClasses = array();
 	/** @var array{callable:bool,beingAdded:bool} */
 	private array $currentItem = self::IMPORTABLE_ITEM_DEFAULTS;
 
@@ -69,9 +68,9 @@ class ArrayPhpFile {
 
 		return match ( true ) {
 			default =>  throw new OutOfBoundsException( self::NON_IMPORTABLE_ITEM ),
-			! is_null( $alias = $this->getGlobalScope( $import ) )              => "{$alias}::class",
-			! is_null( $alias = $this->using( $import )?->getFormattedAlias() ) => $alias,
-			$import === $item                                                   => $import,
+			! is_null( $alias = $this->globallyImported( $import ) )                 => "{$alias}::class",
+			! is_null( $alias = $this->namespaced( $import )?->getFormattedAlias() ) => $alias,
+			$import === $item                                                        => $import,
 		};
 	}
 
@@ -79,8 +78,8 @@ class ArrayPhpFile {
 		$content = $this->getContent();
 		$print   = $this->printer->printFile( $this->phpFile ) . static::CHARACTER_NEWLINE;
 
-		foreach ( $this->nonNamespacedClasses as $classname ) {
-			$print .= "use {$classname};\n" . static::CHARACTER_NEWLINE;
+		foreach ( $this->getGlobalImports() as $classname ) {
+			$print .= "use {$classname};" . static::CHARACTER_NEWLINE;
 		}
 
 		$print .= static::CHARACTER_NEWLINE . Strings::normalize( $this->export( $content ) ) . ';';
@@ -129,7 +128,7 @@ class ArrayPhpFile {
 		$index = $key;
 
 		foreach ( $keys as $i => $key ) {
-			$this->callableBeingAdded() && $this->using( $key )?->import();
+			$this->callableBeingAdded() && $this->namespaced( $key )?->import();
 
 			if ( count( $keys ) === 1 ) {
 				$index = $key;
@@ -184,10 +183,18 @@ class ArrayPhpFile {
 		return str_contains( haystack: $content, needle: '::' );
 	}
 
-	protected function using( string $item ): ?ImportBuilder {
+	protected function namespaced( string $item ): ?ImportBuilder {
 		return self::isSubscribedForImport() && Helpers::isNamespaceIdentifier( $item )
 			? new ImportBuilder( $item, $this->namespace )
 			: null;
+	}
+
+	/** @param PhpNamespace::NAME_* $type */
+	private function importFromCallable( string $name, string $type = PhpNamespace::NAME_NORMAL ): void {
+		$this->callableBeingAdded() && (
+			( PhpNamespace::NAME_NORMAL === $type && $this->importGlobal( $name ) )
+			|| $this->namespaced( $name )?->ofType( $type )->import()
+		);
 	}
 
 	/**
@@ -204,25 +211,12 @@ class ArrayPhpFile {
 		return is_string( $callable ) ? $callable : ( $onlyImportable ? $callable[0] : $callable );
 	}
 
-	final protected function setGlobalScope( string $classname ): bool {
-		return $this->entitledForGlobalScope( $name = ltrim( $classname, characters: '\\' ) )
-			&& $this->nonNamespacedClasses[ $name ] = $name;
-	}
-
-	final protected function getGlobalScope( string $classname ): ?string {
-		return $this->nonNamespacedClasses[ ltrim( $classname, characters: '\\' ) ] ?? null;
-	}
-
 	/**
 	 * @param array{0:string,1:string} $value
 	 * @return array{0:string,1:string}
 	 */
 	private function normalizeArrayCallable( array $value ): array {
-		if ( ! $this->callableBeingAdded() ) {
-			return $value;
-		}
-
-		$this->setGlobalScope( $value[0] ) || $this->using( $value[0] )?->import();
+		$this->importFromCallable( name: $value[0] );
 
 		return $value;
 	}
@@ -255,15 +249,9 @@ class ArrayPhpFile {
 
 	private function toFunctionCallableFrom( ReflectionFunction $reflection ): string {
 		$reflection->getNamespaceName()
-			&& $this->callableBeingAdded()
-			&& $this->using( $reflection->getName() )?->ofType( PhpNamespace::NAME_FUNCTION )->import();
+			&& $this->importFromCallable( $name = $reflection->getName(), type: PhpNamespace::NAME_FUNCTION );
 
-		return $reflection->getName();
-	}
-
-	private function entitledForGlobalScope( string $name ): bool {
-		return ! str_contains( $name, needle: '\\' )
-			&& ! in_array( $name, $this->nonNamespacedClasses, strict: true );
+		return $name ?? $reflection->getName();
 	}
 
 	/** @param array{callable:bool,beingAdded:bool} $options */
