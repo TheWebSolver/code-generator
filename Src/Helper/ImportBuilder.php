@@ -6,7 +6,7 @@ namespace TheWebSolver\Codegarage\Generator\Helper;
 use Nette\PhpGenerator\PhpNamespace as Ns;
 use TheWebSolver\Codegarage\Generator\Traits\ImportResolver;
 
-final class UseBuilder {
+final class ImportBuilder {
 	use ImportResolver;
 
 	public function __construct( string $item, Ns $namespace ) {

@@ -6,9 +6,9 @@ namespace TheWebSolver\Codegarage\Integration;
 use PHPUnit\Framework\TestCase;
 use Nette\PhpGenerator\PhpNamespace;
 use PHPUnit\Framework\Attributes\Test;
-use TheWebSolver\Codegarage\Generator\Helper\UseBuilder;
+use TheWebSolver\Codegarage\Generator\Helper\ImportBuilder;
 
-class UseBuilderTest extends TestCase {
+class ImportBuilderTest extends TestCase {
 	private PhpNamespace $namespace;
 
 	protected function setUp(): void {
@@ -21,17 +21,17 @@ class UseBuilderTest extends TestCase {
 
 	#[Test]
 	public function itEnsuresStatementsAreImported(): void {
-		$this->assertTrue( ( new UseBuilder( TestCase::class, $this->namespace ) )->import() );
+		$this->assertTrue( ( new ImportBuilder( TestCase::class, $this->namespace ) )->import() );
 		$this->assertFalse(
-			( new UseBuilder( TestCase::class, $this->namespace ) )->import(),
+			( new ImportBuilder( TestCase::class, $this->namespace ) )->import(),
 			'Must not import same statement again in same namespace.'
 		);
 
-		$classImporter = new UseBuilder( Test::class, $this->namespace );
-		$funcImporter  = ( new UseBuilder( __NAMESPACE__ . '\\testNamespacedFunc', $this->namespace ) )
+		$classImporter = new ImportBuilder( Test::class, $this->namespace );
+		$funcImporter  = ( new ImportBuilder( __NAMESPACE__ . '\\testNamespacedFunc', $this->namespace ) )
 			->ofType( PhpNamespace::NAME_FUNCTION );
 
-		$altClassImporter = ( new UseBuilder( 'DifferentNamespaced\\' . Test::class, $this->namespace ) )
+		$altClassImporter = ( new ImportBuilder( 'DifferentNamespaced\\' . Test::class, $this->namespace ) )
 			->ofType( PhpNamespace::NAME_NORMAL );
 
 		$this->assertTrue( $classImporter->import() );

@@ -12,8 +12,8 @@ use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\Printer;
 use Nette\PhpGenerator\PhpNamespace;
-use TheWebSolver\Codegarage\Generator\Helper\UseBuilder;
 use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
+use TheWebSolver\Codegarage\Generator\Helper\ImportBuilder;
 
 class ArrayPhpFile {
 	use ArrayExport;
@@ -184,10 +184,10 @@ class ArrayPhpFile {
 		return str_contains( haystack: $content, needle: '::' );
 	}
 
-	protected function using( string $item ): ?UseBuilder {
-		return self::isSubscribedForImport()
-			? ( Helpers::isNamespaceIdentifier( $item ) ? ( new UseBuilder( $item, $this->namespace ) ) : null )
-			: null;
+	protected function using( string $item ): ?ImportBuilder {
+		return ! self::isSubscribedForImport() ? null : (
+			Helpers::isNamespaceIdentifier( $item ) ? ( new ImportBuilder( $item, $this->namespace ) ) : null
+		);
 	}
 
 	/**
