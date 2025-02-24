@@ -176,7 +176,7 @@ class ArrayPhpFileTest extends TestCase {
 			array_keys( $file->getContent()['firstDepth']['secondDepth'] )
 		);
 
-		$file->childOf( 'firstDepth' )->addImportableContent( 'globalScope', 'DateTime::createFromFormat' );
+		$file->childOf( 'firstDepth' )->addImportableContent( 'globalScope', '\DateTime::createFromFormat' );
 
 		$print = $file->print();
 

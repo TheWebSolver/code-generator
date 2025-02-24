@@ -185,9 +185,9 @@ class ArrayPhpFile {
 	}
 
 	protected function using( string $item ): ?ImportBuilder {
-		return ! self::isSubscribedForImport() ? null : (
-			Helpers::isNamespaceIdentifier( $item ) ? ( new ImportBuilder( $item, $this->namespace ) ) : null
-		);
+		return self::isSubscribedForImport() && Helpers::isNamespaceIdentifier( $item )
+			? new ImportBuilder( $item, $this->namespace )
+			: null;
 	}
 
 	/**
@@ -204,12 +204,13 @@ class ArrayPhpFile {
 		return is_string( $callable ) ? $callable : ( $onlyImportable ? $callable[0] : $callable );
 	}
 
-	final protected function setGlobalScope( string $classname ): void {
-		$this->nonNamespacedClasses[ $classname ] = $classname;
+	final protected function setGlobalScope( string $classname ): bool {
+		return $this->entitledForGlobalScope( $name = ltrim( $classname, characters: '\\' ) )
+			&& $this->nonNamespacedClasses[ $name ] = $name;
 	}
 
 	final protected function getGlobalScope( string $classname ): ?string {
-		return $this->nonNamespacedClasses[ $classname ] ?? null;
+		return $this->nonNamespacedClasses[ ltrim( $classname, characters: '\\' ) ] ?? null;
 	}
 
 	/**
@@ -221,9 +222,7 @@ class ArrayPhpFile {
 			return $value;
 		}
 
-		$this->using( $classname = $value[0] )?->import();
-
-		$this->entitledForGlobalScope( $classname ) && $this->setGlobalScope( $classname );
+		$this->setGlobalScope( $value[0] ) || $this->using( $value[0] )?->import();
 
 		return $value;
 	}
@@ -241,31 +240,25 @@ class ArrayPhpFile {
 
 	/** @return string|array{0:string,1:string} */
 	private function normalizeFirstClassCallable( Closure $value ): string|array {
-		$function = new ReflectionFunction( $value );
+		$reflection = new ReflectionFunction( $value );
 
-		return $this->toLateBindingClassCallableFrom( $function )
-			?? $this->toNamespacedCallableFrom( $function )
-			?? $function->getName();
+		return $this->toLateBindingClassCallableFrom( $reflection )
+			?? $this->toFunctionCallableFrom( $reflection );
 	}
 
 	/** @return ?array{0:string,1:string} */
-	private function toLateBindingClassCallableFrom( ReflectionFunction $function ): ?array {
-		return ( $staticClassName = $function->getClosureCalledClass()?->getName() )
-			? $this->normalizeArrayCallable( array( $staticClassName, $function->getShortName() ) )
+	private function toLateBindingClassCallableFrom( ReflectionFunction $reflection ): ?array {
+		return ( $staticClassName = $reflection->getClosureCalledClass()?->getName() )
+			? $this->normalizeArrayCallable( array( $staticClassName, $reflection->getShortName() ) )
 			: null;
 	}
 
-	private function toNamespacedCallableFrom( ReflectionFunction $function ): ?string {
-		if ( ! $function->getNamespaceName() ) {
-			return null;
-		}
+	private function toFunctionCallableFrom( ReflectionFunction $reflection ): string {
+		$reflection->getNamespaceName()
+			&& $this->callableBeingAdded()
+			&& $this->using( $reflection->getName() )?->ofType( PhpNamespace::NAME_FUNCTION )->import();
 
-		$functionName = $function->getName();
-
-		$this->callableBeingAdded()
-			&& $this->using( $functionName )?->ofType( PhpNamespace::NAME_FUNCTION )->import();
-
-		return $functionName;
+		return $reflection->getName();
 	}
 
 	private function entitledForGlobalScope( string $name ): bool {
