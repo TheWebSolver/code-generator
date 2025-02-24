@@ -112,21 +112,14 @@ class ArrayPhpFileTest extends TestCase {
 
 	#[Test]
 	public function itOnlyImportItemUsingImportableMethod(): void {
-		$file = ( new ArrayPhpFile() )->addImportableContent( Argument::class, 'will be imported' );
+		$file        = ( new ArrayPhpFile() )->addImportableContent( Argument::class, 'will be imported' );
+		$useArgument = 'use ' . Argument::class;
 
-		$this->assertStringContainsString(
-			'use ' . Argument::class,
-			$file->print(),
-			'Must not import if ::addContent() method is used.'
-		);
+		$this->assertStringContainsString( $useArgument, $file->print() );
 
 		$file = ( new ArrayPhpFile() )->addContent( Argument::class, 'will not be imported' );
 
-		$this->assertStringNotContainsString(
-			'use ' . Argument::class,
-			$file->print(),
-			'Must not import if ::addContent() method is used.'
-		);
+		$this->assertStringNotContainsString( $useArgument, $file->print() );
 	}
 
 	#[Test]
