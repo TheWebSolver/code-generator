@@ -67,7 +67,7 @@ class ArrayPhpFile {
 	 */
 	public function getAliasOf( string|array|Closure $item, string $type = PhpNamespace::NAME_NORMAL ): string {
 		$import = $this->normalizeCallable( $item, onlyImportable: true );
-		$alias  = $this->using( $import )?->ofType( $type )->getFormattedAlias();
+		$alias  = $this->using( $import )?->ofType( $type )->getAlias();
 
 		return match ( true ) {
 			default             => throw new OutOfBoundsException( sprintf( self::NON_IMPORTABLE_ITEM, $import ) ),

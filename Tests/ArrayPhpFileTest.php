@@ -96,20 +96,20 @@ class ArrayPhpFileTest extends TestCase {
 	#[Test]
 	#[Depends( 'itAddsCallableOfVariousTypes' )]
 	public function itEnsuresImportedItemAliasCanBeRetrieved( ArrayPhpFile $file ): void {
-		$this->assertSame( 'TestCase::class', $file->getAliasOf( TestCase::class ) );
-		$this->assertSame( 'ArrayPhpFileTest::class', $file->getAliasOf( $this->itAddsCallableOfVariousTypes( ... ) ) );
+		$this->assertSame( 'TestCase', $file->getAliasOf( TestCase::class ) );
+		$this->assertSame( 'ArrayPhpFileTest', $file->getAliasOf( $this->itAddsCallableOfVariousTypes( ... ) ) );
 		$this->assertSame(
-			'ArrayPhpFileTest::class',
+			'ArrayPhpFileTest',
 			$file->getAliasOf( array( self::class, __FUNCTION__ ) ),
 			'Does not matter with method name if classname is same'
 		);
-		$this->assertSame( 'TestCase::class', $file->getAliasOf( TestCase::assertIsString( ... ) ) );
+		$this->assertSame( 'TestCase', $file->getAliasOf( TestCase::assertIsString( ... ) ) );
 		$this->assertSame(
 			'testFirstClassCallable',
 			$file->getAliasOf( testFirstClassCallable( ... ), PhpNamespace::NAME_FUNCTION )
 		);
 
-		$this->assertSame( 'DateTime::class', $file->getAliasOf( \DateTime::createFromFormat( ... ) ) );
+		$this->assertSame( 'DateTime', $file->getAliasOf( \DateTime::createFromFormat( ... ) ) );
 
 		// Global function is not imported. So, no alias.
 		$this->expectException( OutOfBoundsException::class );
