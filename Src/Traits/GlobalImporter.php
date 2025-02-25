@@ -9,6 +9,9 @@ use ArrayObject as PhpGlobal;
 trait GlobalImporter {
 	use AliasResolver;
 
+	/** @var array<string,string> */
+	private array $globalImports;
+
 	/** @return PhpGlobal<TType,array<string,string>> */
 	abstract protected function inGlobal(): PhpGlobal;
 
@@ -20,17 +23,9 @@ trait GlobalImporter {
 		return $isImportable;
 	}
 
-	protected function getGlobalAlias(): ?string {
-		return $this->findAliasAsIndexIn( $this->globalTypeImports() );
-	}
-
-	/** @return array<string,string> */
-	private function globalTypeImports(): array {
-		return $this->inGlobal()[ $this->forType() ] ?? array();
-	}
-
 	private function globalContains(): bool {
-		return ( $imports = $this->globalTypeImports() ) && in_array( $this->forImport(), $imports, strict: true );
+		return ( $this->globalImports = $this->inGlobal()[ $this->forType() ] ?? array() )
+			&& in_array( $this->forImport(), $this->globalImports, strict: true );
 	}
 
 	private function globalImportable(): bool {
@@ -40,6 +35,11 @@ trait GlobalImporter {
 	/** @return array<string,string> */
 	private function withGlobalImport(): array {
 		// phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-		return array( ...$this->globalTypeImports(), $this->forImport() => $this->forImport() );
+		return array( ...$this->globalImports(), $this->forImport() => $this->forImport() );
+	}
+
+	/** @return array<string,string> */
+	private function globalImports(): array {
+		return $this->globalImports ?? array();
 	}
 }

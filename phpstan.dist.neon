@@ -25,6 +25,6 @@ parameters:
 			count: 1
 		- # PhpNamespace::getUses() method's return value is legit.
 			path: Src/Traits/NamespaceImporter.php
-			message: '|\$currentTypeImports \(array\<string, string\>\) does not accept array\<string\>|'
+			message: '|\$namespaceImports \(array\<string, string\>\) does not accept array\<string\>|'
 			identifier: assign.propertyType
 			count: 1

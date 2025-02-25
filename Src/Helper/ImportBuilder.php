@@ -42,8 +42,8 @@ final class ImportBuilder {
 
 	public function getAlias(): ?string {
 		return match ( true ) {
-			$this->globalContains()    => $this->getGlobalAlias(),
-			$this->namespaceContains() => $this->getNamespaceAlias(),
+			$this->globalContains()    => $this->findAliasAsIndexIn( $this->globalImports() ),
+			$this->namespaceContains() => $this->findAliasAsIndexIn( $this->namespaceImports() ),
 			default                    => null,
 		};
 	}

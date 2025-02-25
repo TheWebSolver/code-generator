@@ -9,9 +9,8 @@ use Nette\PhpGenerator\PhpNamespace;
 trait NamespaceImporter {
 	use AliasResolver;
 
-	private string $aliasOfImport;
 	/** @var array<string,string> */
-	private array $currentTypeImports = array();
+	private array $namespaceImports;
 
 	abstract protected function inNamespace(): PhpNamespace;
 
@@ -22,30 +21,21 @@ trait NamespaceImporter {
 		return $isImportable;
 	}
 
-	/**
-	 * Gets the alias of a namespace item, if it has been imported to the current namespace.
-	 * Always check with `NamespaceImporter::namespaceContains()` before using this method.
-	 */
-	protected function getNamespaceAlias(): ?string {
-		return $this->findAliasAsIndexIn( imports: $this->namespaceTypeImports() );
-	}
-
 	private function namespaceContains(): bool {
-		return ( $this->currentTypeImports = $this->inNamespace()->getUses( $this->forType() ) )
-			&& in_array( $this->forImport(), $this->currentTypeImports, strict: true );
+		return ( $this->namespaceImports = $this->inNamespace()->getUses( $this->forType() ) )
+			&& in_array( $this->forImport(), $this->namespaceImports, strict: true );
 	}
 
 	private function withNamespaceAlias(): string {
-		$alias             = Helpers::extractShortName( $this->forImport() );
-		$namespaceLastPart = isset( $this->namespaceTypeImports()[ $alias ] )
-			? Helpers::extractShortName( Helpers::extractNamespace( $this->forImport() ) )
-			: '';
+		$alias = Helpers::extractShortName( $this->forImport() );
 
-		return $namespaceLastPart . $alias;
+		return ( isset( $this->namespaceImports()[ $alias ] )
+			? Helpers::extractShortName( Helpers::extractNamespace( $this->forImport() ) )
+			: '' ) . $alias;
 	}
 
 	/** @return array<string,string> */
-	private function namespaceTypeImports(): array {
-		return $this->currentTypeImports ?? array();
+	private function namespaceImports(): array {
+		return $this->namespaceImports ?? array();
 	}
 }
