@@ -4,77 +4,48 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Generator\Traits;
 
 use Nette\PhpGenerator\Helpers;
-use Nette\PhpGenerator\PhpNamespace as Ns;
+use Nette\PhpGenerator\PhpNamespace;
 
 trait NamespaceImporter {
-	private Ns $namespace;
-	private string $import;
+	use AliasResolver;
 
-	/** @var Ns::NAME_* */
-	private string $type = Ns::NAME_NORMAL;
-	/** @var ?string[] */
-	private ?array $currentTypeImports = null;
+	private string $aliasOfImport;
+	/** @var array<string,string> */
+	private array $currentTypeImports = array();
 
-	/** @param Ns::NAME_* $type */
-	public function ofType( string $type ): static {
-		$this->type = $type;
+	abstract protected function inNamespace(): PhpNamespace;
 
-		return $this;
+	protected function importNamespace(): bool {
+		( $isImportable = ! $this->namespaceContains() )
+			&& $this->inNamespace()->addUse( $this->forImport(), $this->withNamespaceAlias(), $this->forType() );
+
+		return $isImportable;
 	}
 
-	public function import(): bool {
-		if ( $this->itemExistsInCurrentImports() ) {
-			return false;
-		}
-
-		$alias = $this->maybeCreateAltAliasFor( Helpers::extractShortName( $this->import ) );
-
-		$this->namespace->addUse( $this->import, $alias, of: $this->type );
-
-		return true;
+	/**
+	 * Gets the alias of a namespace item, if it has been imported to the current namespace.
+	 * Always check with `NamespaceImporter::namespaceContains()` before using this method.
+	 */
+	protected function getNamespaceAlias(): ?string {
+		return $this->findAliasAsIndexIn( imports: $this->namespaceTypeImports() );
 	}
 
-	public function getAlias(): ?string {
-		return $this->itemExistsInCurrentImports() ? $this->findAliasInCurrentImports() : null;
+	private function namespaceContains(): bool {
+		return ( $this->currentTypeImports = $this->inNamespace()->getUses( $this->forType() ) )
+			&& in_array( $this->forImport(), $this->currentTypeImports, strict: true );
 	}
 
-	final public function getFormattedAlias(): ?string {
-		return match ( true ) {
-			! is_null( $alias = $this->ofType( Ns::NAME_NORMAL )->getAlias() )   => "{$alias}::class",
-			! is_null( $alias = $this->ofType( Ns::NAME_FUNCTION )->getAlias() ) => $alias,
-			default                                                              => null,
-		};
-	}
-
-	final protected function importStatementIn( Ns $namespace, string $item ): void {
-		$this->namespace = $namespace;
-		$this->import    = $item;
-	}
-
-	final protected function findAliasInCurrentImports(): ?string {
-		return (string) array_search( $this->import, $this->getCurrentTypeImports(), strict: true ) ?: null;
-	}
-
-	final protected function importedItemAliasedAs( string $alias ): bool {
-		return ! empty( $imports = $this->getCurrentTypeImports() ) && isset( $imports[ $alias ] );
-	}
-
-	protected function maybeCreateAltAliasFor( string $alias ): string {
-		$namespaceLastPart = $this->importedItemAliasedAs( $alias )
-			? Helpers::extractShortName( Helpers::extractNamespace( $this->import ) )
+	private function withNamespaceAlias(): string {
+		$alias             = Helpers::extractShortName( $this->forImport() );
+		$namespaceLastPart = isset( $this->namespaceTypeImports()[ $alias ] )
+			? Helpers::extractShortName( Helpers::extractNamespace( $this->forImport() ) )
 			: '';
 
 		return $namespaceLastPart . $alias;
 	}
 
-	private function itemExistsInCurrentImports(): bool {
-		$this->currentTypeImports = $this->namespace->getUses( $this->type );
-
-		return in_array( $this->import, $this->currentTypeImports, strict: true );
-	}
-
-	/** @return string[] */
-	private function getCurrentTypeImports(): array {
-		return $this->currentTypeImports ?? $this->namespace->getUses( of: $this->type );
+	/** @return array<string,string> */
+	private function namespaceTypeImports(): array {
+		return $this->currentTypeImports ?? array();
 	}
 }

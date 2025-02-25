@@ -7,21 +7,20 @@ use Closure;
 use ReflectionFunction;
 use Nette\Utils\Strings;
 use OutOfBoundsException;
+use ArrayObject as PhpGlobal;
 use Nette\PhpGenerator\Dumper;
-use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\Printer;
 use Nette\PhpGenerator\PhpNamespace;
 use TheWebSolver\Codegarage\Generator\Traits\ArrayExport;
 use TheWebSolver\Codegarage\Generator\Helper\ImportBuilder;
-use TheWebSolver\Codegarage\Generator\Traits\GlobalImporter;
 
 class ArrayPhpFile {
-	use GlobalImporter, ArrayExport;
+	use ArrayExport;
 
 	/** @var non-empty-string */
 	protected const PARENT_INDICES_SEPARATOR = '.';
-	private const NON_IMPORTABLE_ITEM        = 'Impossible to find alias of non-import(able) item.';
+	private const NON_IMPORTABLE_ITEM        = 'Impossible to find alias of non-import(able) item: "%s".';
 	private const IMPORTABLE_ITEM_DEFAULTS   = array(
 		'callable'   => false,
 		'beingAdded' => false,
@@ -34,11 +33,13 @@ class ArrayPhpFile {
 	/** @var array{callable:bool,beingAdded:bool} */
 	private array $currentItem = self::IMPORTABLE_ITEM_DEFAULTS;
 
+	/** @param PhpGlobal<PhpNamespace::NAME_*,array<string,string>> $globalImports */
 	public function __construct(
 		private PhpFile $phpFile = new PhpFile(),
 		private Printer $printer = new Printer(),
 		private Dumper $dumper = new Dumper(),
-		private PhpNamespace $namespace = new PhpNamespace( '' )
+		private PhpNamespace $namespace = new PhpNamespace( '' ),
+		private PhpGlobal $globalImports = new PhpGlobal( flags: PhpGlobal::STD_PROP_LIST ),
 	) {
 		$phpFile->setStrictTypes()->addNamespace( $namespace );
 	}
@@ -60,17 +61,18 @@ class ArrayPhpFile {
 	}
 
 	/**
-	 * @param string|array{0:string,1:string}|Closure $item Other content or callable item.
+	 * @param string|array{0:string,1:string}|Closure $item One of the `ImportBuilder::IMPORTABLE_TYPES` item.
+	 * @param PhpNamespace::NAME_*                    $type The item type.
 	 * @throws OutOfBoundsException When provided $item is not import(able).
 	 */
-	public function getAliasOf( string|array|Closure $item ): string {
+	public function getAliasOf( string|array|Closure $item, string $type = PhpNamespace::NAME_NORMAL ): string {
 		$import = $this->normalizeCallable( $item, onlyImportable: true );
+		$alias  = $this->using( $import )?->ofType( $type )->getFormattedAlias();
 
 		return match ( true ) {
-			default =>  throw new OutOfBoundsException( self::NON_IMPORTABLE_ITEM ),
-			! is_null( $alias = $this->globallyImported( $import ) )                 => "{$alias}::class",
-			! is_null( $alias = $this->namespaced( $import )?->getFormattedAlias() ) => $alias,
-			$import === $item                                                        => $import,
+			default             => throw new OutOfBoundsException( sprintf( self::NON_IMPORTABLE_ITEM, $import ) ),
+			! is_null( $alias ) => $alias,
+			$import === $item   => $import,
 		};
 	}
 
@@ -78,8 +80,10 @@ class ArrayPhpFile {
 		$content = $this->getContent();
 		$print   = $this->printer->printFile( $this->phpFile ) . static::CHARACTER_NEWLINE;
 
-		foreach ( $this->getGlobalImports() as $classname ) {
-			$print .= "use {$classname};" . static::CHARACTER_NEWLINE;
+		foreach ( $this->globalImports->getArrayCopy() as $type => $imports ) {
+			foreach ( $imports as $import ) {
+				$print .= "use {$import};" . static::CHARACTER_NEWLINE;
+			}
 		}
 
 		$print .= static::CHARACTER_NEWLINE . Strings::normalize( $this->export( $content ) ) . ';';
@@ -96,8 +100,7 @@ class ArrayPhpFile {
 	 * @param PhpNamespace::NAME_* $type The name type that is being imported. Defaults to classname.
 	 */
 	public function importFrom( string $name, string $type = PhpNamespace::NAME_NORMAL ): static {
-		( PhpNamespace::NAME_NORMAL === $type && $this->importGlobal( $name ) )
-			|| $this->namespaced( $name )?->ofType( $type )->import();
+		$this->using( $name )?->ofType( $type )->import();
 
 		return $this;
 	}
@@ -172,7 +175,11 @@ class ArrayPhpFile {
 	}
 
 	protected function exportString( string $content ): string {
-		$alias = self::isSubscribedForImport() ? $this->getAliasOf( $content ) : $content;
+		if ( ! self::isSubscribedForImport() ) {
+			return $this->exportMixed( $content );
+		}
+
+		$alias = ImportBuilder::formattedAliasOf( $content, $this->globalImports, $this->namespace ) ?? $content;
 
 		return match ( true ) {
 			$alias === $content            => $this->exportMixed( $alias ),
@@ -194,9 +201,9 @@ class ArrayPhpFile {
 		return str_contains( haystack: $content, needle: '::' );
 	}
 
-	protected function namespaced( string $item ): ?ImportBuilder {
-		return self::isSubscribedForImport() && Helpers::isNamespaceIdentifier( $item )
-			? new ImportBuilder( $item, $this->namespace )
+	protected function using( string $item ): ?ImportBuilder {
+		return self::isSubscribedForImport()
+			? new ImportBuilder( $item, $this->namespace, $this->globalImports )
 			: null;
 	}
 
@@ -237,10 +244,9 @@ class ArrayPhpFile {
 
 	/** @return string|array{0:string,1:string} */
 	private function normalizeFirstClassCallable( Closure $value ): string|array {
-		$reflection = new ReflectionFunction( $value );
+		$ref = new ReflectionFunction( $value );
 
-		return $this->toLateBindingClassCallableFrom( $reflection )
-			?? $this->toFunctionCallableFrom( $reflection );
+		return $this->toLateBindingClassCallableFrom( $ref ) ?? $this->toFunctionCallableFrom( $ref );
 	}
 
 	/** @return ?array{0:string,1:string} */

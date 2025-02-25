@@ -3,32 +3,43 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Generator\Traits;
 
-trait GlobalImporter {
-	/** @var array<string,string> */
-	private array $nonNamespacedImports = array();
+use ArrayObject as PhpGlobal;
 
-	/** @return array<string,string> */
-	final protected function getGlobalImports(): array {
-		return $this->nonNamespacedImports;
-	}
+/** @template TType */
+trait GlobalImporter {
+	use AliasResolver;
+
+	/** @return PhpGlobal<TType,array<string,string>> */
+	abstract protected function inGlobal(): PhpGlobal;
 
 	/** @return bool `true` if $name does not have a namespace, else `false`. */
-	final protected function importGlobal( string $name ): bool {
-		return $this->entitledForGlobalImport( $name = $this->withoutPrecedingNamespaceSeparator( $name ) )
-			&& $this->nonNamespacedImports[ $name ] = $name;
+	final protected function importGlobal(): bool {
+		( $isImportable = $this->globalImportable() )
+			&& $this->inGlobal()->offsetSet( $this->forType(), $this->withGlobalImport() );
+
+		return $isImportable;
 	}
 
-	/** @return ?string `null` if $name has namespace or not yet imported. */
-	final protected function globallyImported( string $name ): ?string {
-		return $this->nonNamespacedImports[ $this->withoutPrecedingNamespaceSeparator( $name ) ] ?? null;
+	protected function getGlobalAlias(): ?string {
+		return $this->findAliasAsIndexIn( $this->globalTypeImports() );
 	}
 
-	private function entitledForGlobalImport( string $name ): bool {
-		return ! str_contains( $name, needle: '\\' )
-			&& ! in_array( $name, $this->nonNamespacedImports, strict: true );
+	/** @return array<string,string> */
+	private function globalTypeImports(): array {
+		return $this->inGlobal()[ $this->forType() ] ?? array();
 	}
 
-	private function withoutPrecedingNamespaceSeparator( string $name ): string {
-		return ltrim( string: $name, characters: '\\' );
+	private function globalContains(): bool {
+		return ( $imports = $this->globalTypeImports() ) && in_array( $this->forImport(), $imports, strict: true );
+	}
+
+	private function globalImportable(): bool {
+		return ! str_contains( $this->forImport(), needle: '\\' ) && ! $this->globalContains();
+	}
+
+	/** @return array<string,string> */
+	private function withGlobalImport(): array {
+		// phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		return array( ...$this->globalTypeImports(), $this->forImport() => $this->forImport() );
 	}
 }

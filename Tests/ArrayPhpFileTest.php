@@ -7,6 +7,7 @@ use DateTime;
 use SplFixedArray;
 use OutOfBoundsException;
 use PHPUnit\Framework\TestCase;
+use Nette\PhpGenerator\PhpNamespace;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Depends;
 use TheWebSolver\Codegarage\Generator\ArrayPhpFile;
@@ -103,12 +104,16 @@ class ArrayPhpFileTest extends TestCase {
 			'Does not matter with method name if classname is same'
 		);
 		$this->assertSame( 'TestCase::class', $file->getAliasOf( TestCase::assertIsString( ... ) ) );
-		$this->assertSame( 'testFirstClassCallable', $file->getAliasOf( testFirstClassCallable( ... ) ) );
+		$this->assertSame(
+			'testFirstClassCallable',
+			$file->getAliasOf( testFirstClassCallable( ... ), PhpNamespace::NAME_FUNCTION )
+		);
 
 		$this->assertSame( 'DateTime::class', $file->getAliasOf( \DateTime::createFromFormat( ... ) ) );
 
+		// Global function is not imported. So, no alias.
 		$this->expectException( OutOfBoundsException::class );
-		$file->getAliasOf( is_string( ... ), 'Global function is not imported. So, no alias.' );
+		$file->getAliasOf( is_string( ... ) );
 	}
 
 	#[Test]
