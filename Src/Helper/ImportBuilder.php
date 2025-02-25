@@ -9,27 +9,27 @@ use TheWebSolver\Codegarage\Generator\Traits\GlobalImporter;
 use TheWebSolver\Codegarage\Generator\Traits\NamespaceImporter;
 
 final class ImportBuilder {
-	/** @use GlobalImporter<value-of<self::IMPORTABLE_TYPES>> */
+	/** @use GlobalImporter<Ns::NAME_*> */
 	use GlobalImporter, NamespaceImporter;
 
 	public const IMPORTABLE_TYPES = array( Ns::NAME_NORMAL, Ns::NAME_FUNCTION, Ns::NAME_CONSTANT );
 
-	/** @var value-of<self::IMPORTABLE_TYPES> */
+	/** @var Ns::NAME_* */
 	private string $type = Ns::NAME_NORMAL;
 
-	/** @param Gbl<value-of<self::IMPORTABLE_TYPES>,array<string,string>> $globals */
+	/** @param Gbl<Ns::NAME_*,array<string,string>> $globals */
 	public function __construct( private string $item, private Ns $namespace, private Gbl $globals ) {
 		$this->item = $this->withoutPrecedingNamespaceSeparator();
 	}
 
-	/** @param Gbl<value-of<self::IMPORTABLE_TYPES>,array<string,string>> $global */
+	/** @param Gbl<Ns::NAME_*,array<string,string>> $global */
 	public static function formattedAliasOf( string $item, Gbl $global, Ns $namespace ): ?string {
 		$self = new self( $item, $namespace, $global );
 
 		return array_reduce( self::IMPORTABLE_TYPES, callback: $self->discoverFormattedAlias( ... ) );
 	}
 
-	/** @param value-of<self::IMPORTABLE_TYPES> $name */
+	/** @param Ns::NAME_* $name */
 	public function ofType( string $name ): self {
 		$this->type = $name;
 
@@ -52,7 +52,7 @@ final class ImportBuilder {
 		return ( $alias = $this->getAlias() ) ? $this->getCurrentTypeFormattedAlias( $alias ) : null;
 	}
 
-	/** @return value-of<self::IMPORTABLE_TYPES> */
+	/** @return Ns::NAME_* */
 	protected function forType(): string {
 		return $this->type;
 	}
@@ -61,7 +61,7 @@ final class ImportBuilder {
 		return $this->item;
 	}
 
-	/** @return Gbl<value-of<self::IMPORTABLE_TYPES>,array<string,string>> */
+	/** @return Gbl<Ns::NAME_*,array<string,string>> */
 	protected function inGlobal(): Gbl {
 		return $this->globals;
 	}
@@ -70,7 +70,7 @@ final class ImportBuilder {
 		return $this->namespace;
 	}
 
-	/** @param value-of<self::IMPORTABLE_TYPES> $type */
+	/** @param Ns::NAME_* $type */
 	private function discoverFormattedAlias( ?string $found, string $type ): ?string {
 		( $formattedAlias = $this->ofType( $type )->getFormattedAlias() ) && ( $found = $formattedAlias );
 

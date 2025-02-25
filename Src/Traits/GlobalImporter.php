@@ -15,7 +15,6 @@ trait GlobalImporter {
 	/** @return PhpGlobal<TType,array<string,string>> */
 	abstract protected function inGlobal(): PhpGlobal;
 
-	/** @return bool `true` if $name does not have a namespace, else `false`. */
 	final protected function importGlobal(): bool {
 		( $isImportable = $this->globalImportable() )
 			&& $this->inGlobal()->offsetSet( $this->forType(), $this->withGlobalImport() );
