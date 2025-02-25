@@ -77,20 +77,22 @@ class ArrayPhpFile {
 	}
 
 	public function print(): string {
-		$content = $this->getContent();
-		$print   = $this->printer->printFile( $this->phpFile ) . static::CHARACTER_NEWLINE;
+		$arrayContent        = $this->getContent();
+		$globalImport        = '';
+		$fileHeader          = $this->printer->printFile( $this->phpFile );
+		[$phpTag, $nsImport] = explode( separator:";\n", string: $fileHeader, limit: 2 );
+		$nsImport            = implode( static::CHARACTER_NEWLINE, explode( "\n", $nsImport ) );
 
 		foreach ( $this->globalImports->getArrayCopy() as $type => $imports ) {
-			foreach ( $imports as $import ) {
-				$print .= "use {$import};" . static::CHARACTER_NEWLINE;
-			}
+			$globalImport .= array_reduce( $imports, $this->toUseStatement( ... ), initial: $globalImport );
 		}
 
-		$print .= static::CHARACTER_NEWLINE . Strings::normalize( $this->export( $content ) ) . ';';
+		$fileContent  = static::CHARACTER_NEWLINE . static::CHARACTER_NEWLINE . $globalImport . $nsImport;
+		$fileContent .= static::CHARACTER_NEWLINE . Strings::normalize( $this->export( $arrayContent ) );
 
 		$this->flushArrayExport();
 
-		return $print;
+		return "{$phpTag};{$fileContent};";
 	}
 
 	/**
@@ -273,5 +275,9 @@ class ArrayPhpFile {
 
 	private function callableBeingAdded(): bool {
 		return $this->currentItem['callable'] && $this->currentItem['beingAdded'];
+	}
+
+	private function toUseStatement( string $statement, string $import ): string {
+		return $statement .= "use {$import};" . static::CHARACTER_NEWLINE;
 	}
 }
